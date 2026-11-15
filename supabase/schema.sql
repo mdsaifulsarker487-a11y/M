@@ -1,6 +1,7 @@
--- DOLFish Control Center: initial database schema
--- Apply only after selecting and activating the intended Supabase project.
--- Roles come from trusted app_metadata, never user-editable user_metadata.
+-- DOLFish Control Center: deployed initial schema
+-- Migration: dolfish_control_center_initial_schema
+-- Project: onfpkfrdzpahcitqcdlw
+-- RLS is enabled on all tables. Roles are read from trusted app_metadata.
 create table if not exists public.cc_projects (
  id uuid primary key default gen_random_uuid(),
  name text not null, slug text not null unique, description text not null default '',
@@ -37,5 +38,5 @@ revoke all on public.cc_audit_events from anon, authenticated;
 grant select on public.cc_audit_events to authenticated;
 grant select, insert, update, delete on public.cc_projects to authenticated;
 grant select, insert, update, delete on public.cc_provider_connections to authenticated;
--- Audit inserts must come from a trusted server-side service.
--- secret_reference is a vault path/reference only, never a secret value.
+-- Audit inserts must come from a trusted server-side process.
+-- secret_reference stores vault references only, never secret values.
