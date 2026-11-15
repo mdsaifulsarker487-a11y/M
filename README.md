@@ -1,17 +1,24 @@
 # DOLFish Control Center
 
-Internal DOLFish ecosystem management dashboard foundation.
+Internal DOLFish ecosystem management dashboard.
 
-## Frontend
-Responsive dark dashboard with Overview, Projects, APIs & Secrets, Infrastructure, Monitoring, Security, Operations and Documentation; English/Bangla toggle; project search; PWA manifest and basic service-worker caching.
+## Current implementation
+- Responsive dark dashboard, English/Bangla toggle, project search and PWA foundation.
+- Supabase project restored and active: `onfpkfrdzpahcitqcdlw` (Tokyo).
+- Database schema deployed: `cc_projects`, `cc_provider_connections`, `cc_audit_events`.
+- RLS enabled on all three tables; initial security advisor check returned no lints.
+- Six DOLFish project records and ten provider metadata records seeded.
+- Supabase email/password sign-in and sign-up UI added. Owner/admin authorization is not yet assigned or verified.
 
 ## Security
-This is currently a static preview, not a production admin console. Authentication and server-side authorization are not active. No API secret values or live provider metrics are stored.
-
-## Backend foundation
-- backend/README.md: target architecture and setup checklist.
-- supabase/schema.sql: initial tables and RLS policy draft; NOT applied to a database.
-- .env.example: variable names only; no credentials.
+- Browser uses only the Supabase publishable key; this key is designed for public clients.
+- Never put a Supabase secret/service-role key in frontend code or GitHub.
+- Provider secret values are not stored in Postgres. `secret_reference` is for vault references only.
+- RLS authorization reads trusted `app_metadata.role`, never user-editable `user_metadata`.
+- Do not enable provider operations until server-side authorization and audit logging are complete.
 
 ## Next
-Select/activate a Supabase project, configure Auth and server-side authorization, apply and verify the schema, then connect providers individually. Do not enable operational actions until authorization and audit logging are verified.
+1. Create/confirm the owner's Auth account and assign its trusted `app_metadata.role=owner` securely.
+2. Verify sign-in, role-gated reads and RLS denial for non-admin accounts.
+3. Add server-side functions for audit writes and provider integration management.
+4. Connect providers one at a time with least-privilege credentials.
