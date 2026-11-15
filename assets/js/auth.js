@@ -2,6 +2,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./supabase-config.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+window.dolfishSupabase = supabase;
 const host = document.querySelector(".topright");
 const panel = document.createElement("div");
 panel.className = "auth-panel";
@@ -36,6 +37,12 @@ function showMessage(message, isError = false) {
   status.textContent = message;
   status.style.color = isError ? "#ff9b9b" : "#a9c5e8";
 }
+function publishAuth(user) {
+  const role = user?.app_metadata?.role || null;
+  window.dispatchEvent(new CustomEvent("dolfish:auth", {
+    detail: { user, role, supabase }
+  }));
+}
 function setSignedIn(user) {
   if (!user) {
     openBtn.textContent = "Sign in";
@@ -43,13 +50,18 @@ function setSignedIn(user) {
     signup.hidden = false;
     logout.hidden = true;
     showMessage("Sign in with your owner account.");
+    publishAuth(null);
     return;
   }
   openBtn.textContent = user.email ? user.email.split("@")[0] : "Account";
   form.hidden = true;
   signup.hidden = true;
   logout.hidden = false;
-  showMessage("Signed in. Access to management data requires an owner/admin role assigned securely by the project owner.");
+  const role = user.app_metadata?.role;
+  showMessage(role === "owner" || role === "admin"
+    ? `Signed in · ${role} access enabled.`
+    : "Signed in. Your account needs an owner/admin role before management data can load.");
+  publishAuth(user);
 }
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
