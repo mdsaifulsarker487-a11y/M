@@ -18,6 +18,16 @@
 ## Important status distinction
 The catalog is a plan/registry, not proof that any provider account is connected. Real OAuth/API credentials and user approval are still required for live integrations.
 
+## Health checks delivered
+- Added `cc_provider_health_checks` to store timestamped provider check results, latency, HTTP status and a safe message.
+- RLS permits owner/admin reads; browser roles cannot insert or modify health records.
+- Deployed `cc-provider-health` Edge Function (ACTIVE, JWT verification enabled). It verifies the caller and trusted `app_metadata.role` before checking a provider.
+- Supabase check performs a real Auth health endpoint probe. Other providers return `not_configured` until server-side credentials are provisioned; no fake success is reported.
+- Infrastructure registry includes a Check action and displays the latest saved result.
+
+## Test limitation
+A live authenticated health-check call has not yet been run because the owner account/role is still not provisioned. The function and database table are deployed.
+
 ## Next batch
 - Implement GitHub read-only integration using the existing approved GitHub connection.
 - Add a server-side provider credential reference and health-check contract.
