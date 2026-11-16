@@ -308,9 +308,15 @@ if(operationForm)operationForm.addEventListener("submit",async event=>{
  if(rationale.length<10){document.getElementById("operationFormMessage").textContent="Please provide at least 10 characters of rationale.";return;}
  submit.disabled=true;submit.textContent="Submitting…";
  try{
-  const {error}=await window.dolfishSupabase.from("cc_operation_requests").insert({requested_by:currentUser.id,operation_type:type,target_project:target,rationale,status:"pending"});
+  const {data:created,error}=await window.dolfishSupabase.from("cc_operation_requests").insert({requested_by:currentUser.id,operation_type:type,target_project:target,rationale,status:"pending"}).select("id").single();
   if(error)throw error;
-  operationForm.reset();document.getElementById("operationFormMessage").textContent="Request submitted for owner review. No action has been executed.";
+  let auditSaved=true;
+  try{
+   const {error:auditError}=await window.dolfishSupabase.functions.invoke("cc-audit-write",{body:{action:"operation_request_created",target_type:"operation_request",target_id:created.id,details:{operation_type:type,target_project:target}}});
+   if(auditError)auditSaved=false;
+  }catch{auditSaved=false;}
+  operationForm.reset();
+  document.getElementById("operationFormMessage").textContent=auditSaved?"Request submitted and audit event recorded. No production action has been executed.":"Request submitted, but the audit event could not be confirmed. Notify the owner before proceeding.";
   await loadLiveData({user:currentUser,role:currentRole,supabase:window.dolfishSupabase});
  }catch(err){console.error("Operation request failed",err);document.getElementById("operationFormMessage").textContent="Request failed. Check access and required fields.";}
  finally{submit.disabled=false;submit.textContent="Submit for approval";}
