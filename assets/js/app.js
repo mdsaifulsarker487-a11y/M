@@ -12,6 +12,7 @@ let currentProviders = demoProviders;
 let currentAuditEvents = [];
 let currentCatalog = [];
 let currentHealthChecks = [];
+let currentOperationRequests = [];
 let dataMode = "demo";
 let currentUser = null;
 let currentRole = null;
@@ -118,6 +119,36 @@ function renderIntegrationCatalog() {
 }
 
 
+
+function renderOperationRequests(){
+ const body=document.getElementById("operationRequests");if(!body)return;body.replaceChildren();
+ if(dataMode!=="live"){const p=document.createElement("p");p.className="emptyhint";p.textContent="Approved owner/admin access is required to view operation requests.";body.append(p);return;}
+ if(!currentOperationRequests.length){const p=document.createElement("p");p.className="emptyhint";p.textContent="No operation requests yet. Create a request above; no production action will run automatically.";body.append(p);return;}
+ currentOperationRequests.forEach(item=>{
+  const row=document.createElement("div");row.className="rowitem";
+  const info=document.createElement("div");
+  const title=document.createElement("strong");title.textContent=item.operation_type.replaceAll("_"," ")+" · "+item.target_project;
+  const detail=document.createElement("small");detail.textContent=item.rationale+" · "+new Date(item.created_at).toLocaleString();
+  info.append(title,detail);
+  const controls=document.createElement("div");controls.className="operation-controls";
+  const badge=document.createElement("span");badge.className="health-status "+(item.status==="pending"?"not_configured":item.status);badge.textContent=item.status;controls.append(badge);
+  if(currentRole==="owner"&&item.status==="pending"){
+   for(const decision of ["approved","rejected"]){
+    const btn=document.createElement("button");btn.type="button";btn.className="check-provider";btn.textContent=decision==="approved"?"Approve":"Reject";
+    btn.addEventListener("click",async()=>{
+     btn.disabled=true;btn.textContent="Saving…";
+     try{
+      const {data,error}=await window.dolfishSupabase.functions.invoke("cc-operation-review",{body:{request_id:item.id,decision,note:"Reviewed in Control Center"}});
+      if(error)throw error;if(!data?.ok)throw new Error(data?.error||"Review failed");
+      await loadLiveData({user:currentUser,role:currentRole,supabase:window.dolfishSupabase});
+     }catch(err){console.error("Operation review failed",err);btn.disabled=false;btn.textContent=decision==="approved"?"Approve":"Reject";}
+    });controls.append(btn);
+   }
+  }
+  row.append(info,controls);body.append(row);
+ });
+}
+
 function renderMonitoring() {
   const summary=document.getElementById("monitoringSummary");
   const body=document.getElementById("monitoringHistory");
@@ -161,6 +192,7 @@ function renderAll() {
   renderAuditEvents();
   renderAccessSummary();
   renderMonitoring();
+  renderOperationRequests();
 }
 function renderAuditEvents() {
   const el = document.getElementById("auditEvents");
@@ -223,18 +255,20 @@ async function loadLiveData({user,role,supabase}) {
     currentAuditEvents=[];
     currentCatalog=[];
     currentHealthChecks=[];
+    currentOperationRequests=[];
     renderAll();
     return;
   }
-  const [projectResult,providerResult,auditResult,catalogResult,healthResult]=await Promise.all([
+  const [projectResult,providerResult,auditResult,catalogResult,healthResult,operationResult]=await Promise.all([
     supabase.from("cc_projects").select("id,name,slug,description,lifecycle_status,updated_at").order("name"),
     supabase.from("cc_provider_connections").select("id,provider,display_name,status,secret_reference,updated_at").order("display_name"),
     supabase.from("cc_audit_events").select("id,action,target_type,target_id,created_at").order("created_at",{ascending:false}).limit(10),
     supabase.from("cc_provider_catalog").select("provider,display_name,category,auth_method,minimum_scopes,capabilities,docs_url,connection_strategy").order("display_name"),
-    supabase.from("cc_provider_health_checks").select("provider,status,http_status,latency_ms,message,checked_at").order("checked_at",{ascending:false}).limit(30)
+    supabase.from("cc_provider_health_checks").select("provider,status,http_status,latency_ms,message,checked_at").order("checked_at",{ascending:false}).limit(30),
+    supabase.from("cc_operation_requests").select("id,requested_by,operation_type,target_project,rationale,status,reviewed_at,review_note,created_at").order("created_at",{ascending:false}).limit(30)
   ]);
-  if(projectResult.error || providerResult.error || auditResult.error || catalogResult.error || healthResult.error) {
-    console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error||catalogResult.error||healthResult.error);
+  if(projectResult.error || providerResult.error || auditResult.error || catalogResult.error || healthResult.error || operationResult.error) {
+    console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error||catalogResult.error||healthResult.error||operationResult.error);
     dataMode="restricted";
     currentProjects=demoProjects;
     currentProviders=demoProviders;
@@ -249,6 +283,7 @@ async function loadLiveData({user,role,supabase}) {
   currentAuditEvents=auditResult.data||[];
   currentCatalog=catalogResult.data||[];
   currentHealthChecks=healthResult.data||[];
+  currentOperationRequests=operationResult.data||[];
   dataMode="live";
   renderAll();
 }
@@ -261,3 +296,22 @@ if(refreshMonitoring)refreshMonitoring.addEventListener("click",async()=>{
   finally{refreshMonitoring.disabled=false;refreshMonitoring.textContent="Refresh data";}
 });
 if("serviceWorker"in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+
+const operationForm=document.getElementById("operationRequestForm");
+if(operationForm)operationForm.addEventListener("submit",async event=>{
+ event.preventDefault();
+ if(dataMode!=="live"||!currentUser||!["owner","admin"].includes(currentRole)||!window.dolfishSupabase)return;
+ const submit=operationForm.querySelector('button[type="submit"]');
+ const type=document.getElementById("operationType").value;
+ const target=document.getElementById("operationTarget").value.trim();
+ const rationale=document.getElementById("operationRationale").value.trim();
+ if(rationale.length<10){document.getElementById("operationFormMessage").textContent="Please provide at least 10 characters of rationale.";return;}
+ submit.disabled=true;submit.textContent="Submitting…";
+ try{
+  const {error}=await window.dolfishSupabase.from("cc_operation_requests").insert({requested_by:currentUser.id,operation_type:type,target_project:target,rationale,status:"pending"});
+  if(error)throw error;
+  operationForm.reset();document.getElementById("operationFormMessage").textContent="Request submitted for owner review. No action has been executed.";
+  await loadLiveData({user:currentUser,role:currentRole,supabase:window.dolfishSupabase});
+ }catch(err){console.error("Operation request failed",err);document.getElementById("operationFormMessage").textContent="Request failed. Check access and required fields.";}
+ finally{submit.disabled=false;submit.textContent="Submit for approval";}
+});
