@@ -11,6 +11,19 @@ function respond(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
+function containsSensitiveField(value: unknown, depth = 0): boolean {
+  if (depth > 8) return true;
+  if (Array.isArray(value)) return value.some(item => containsSensitiveField(item, depth + 1));
+  if (!value || typeof value !== "object") {
+    if (typeof value === "string") return /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\\bBearer\\s+[A-Za-z0-9._~+/-]+=*/i.test(value);
+    return false;
+  }
+  return Object.entries(value as Record<string, unknown>).some(([key, child]) =>
+    /secret|password|passwd|token|api[_-]?key|access[_-]?key|authorization|credential|private[_-]?key/i.test(key)
+    || containsSensitiveField(child, depth + 1)
+  );
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return respond(405, { error: "method_not_allowed" });
@@ -47,6 +60,7 @@ Deno.serve(async (req: Request) => {
     if (target_id !== null && (typeof target_id !== "string" || target_id.length > 160)) return respond(400, { error: "invalid_target_id" });
     if (!details || typeof details !== "object" || Array.isArray(details)) return respond(400, { error: "invalid_details" });
     if (JSON.stringify(details).length > 8000) return respond(413, { error: "details_too_large" });
+    if (containsSensitiveField(details)) return respond(400, { error: "sensitive_audit_detail_rejected" });
 
     const adminClient = createClient(url, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
