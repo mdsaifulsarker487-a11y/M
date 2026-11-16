@@ -9,7 +9,7 @@ Deno.serve(async(req:Request)=>{
   if(req.method!=="POST")return reply(405,{error:"method_not_allowed"});
   const url=Deno.env.get("SUPABASE_URL"),anon=Deno.env.get("SUPABASE_ANON_KEY"),service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if(!url||!anon||!service)return reply(500,{error:"server_configuration_error"});
-  const token=(req.headers.get("Authorization")||"").replace(/^Bearer\\s+/i,"");
+  const token=(req.headers.get("Authorization")||"").replace(/^Bearer\s+/i,"");
   if(!token)return reply(401,{error:"missing_bearer_token"});
   const auth=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:{user},error}=await auth.auth.getUser(token);
