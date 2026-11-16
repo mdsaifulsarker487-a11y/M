@@ -1,65 +1,77 @@
 # DOLFish Control Center
 
-Internal DOLFish ecosystem management dashboard.
+Internal DOLFish ecosystem management dashboard. It is a control plane for project inventory, provider metadata, point-in-time health probes, audit events and controlled operation requests. It does not replace the individual projects' own applications or backends.
 
 ## Current implementation
-- Responsive dark dashboard, English/Bangla toggle, project search and PWA foundation.
-- Supabase project restored and active: `onfpkfrdzpahcitqcdlw` (Tokyo).
-- Database schema deployed: `cc_projects`, `cc_provider_connections`, `cc_audit_events`.
-- RLS enabled on all three tables; latest security and health advisor checks returned no lints.
-- Six DOLFish project records and ten provider metadata records seeded.
-- Supabase email/password sign-in and sign-up UI added. Owner account provisioning and end-to-end authorization testing remain outstanding.
-- Server-side `cc-audit-write` Edge Function deployed with JWT verification and trusted `app_metadata.role` checks. Operation request creation is wired to it; successful live verification still awaits owner access.
 
-## Security
-- Browser uses only the Supabase publishable key; this key is designed for public clients.
-- Never put a Supabase secret/service-role key in frontend code or GitHub.
-- Provider secret values are not stored in Postgres. `secret_reference` is for vault references only.
-- RLS and the audit function authorize from trusted `app_metadata.role`, never user-editable `user_metadata`.
-- Audit write function is deployed, but authorized end-to-end insert testing awaits owner provisioning.
-- Do not enable provider operations until each operation and its audit write are implemented server-side.
+- Responsive dark dashboard, English/Bangla toggle and PWA foundation.
+- Supabase project: `onfpkfrdzpahcitqcdlw` (Tokyo, ap-northeast-1).
+- Six ecosystem projects and ten provider catalog records.
+- Six `public.cc_*` tables; RLS is enabled on all six.
+- Supabase email/password sign-in. Trusted authorization uses `app_metadata.role`, never user-editable `user_metadata`.
+- Server-side audit writer validates owner/admin identity and rejects sensitive-looking audit details.
+- Provider health function supports read-only probes for Supabase and configured GitHub, GitLab, Vercel, Cloudflare, Netlify, Render, Railway, Cloudinary and Google Cloud Secret Manager credentials.
+- Monitoring shows recorded point-in-time health checks; it does not claim continuous uptime or synthetic availability.
+- Controlled operations queue supports request submission and owner approval/rejection. Approval records intent only; it does not deploy, restart, roll back or rotate secrets.
+- Operation review uses a server-side transactional RPC so the status change and audit event commit or roll back together.
 
-- Provider catalog deployed with 10 providers, approved auth methods, initial least-privilege scopes, capabilities and official documentation links.
-- Provider catalog RLS enabled; read access is owner/admin and management is owner-only.
-- Infrastructure view now renders the live provider integration registry for authorized users.
+## Security boundaries
 
-- Provider health-check history table deployed with privileged read-only RLS.
-- Server-side `cc-provider-health` Edge Function deployed with JWT verification and trusted owner/admin role checks. It probes Supabase Auth health; other providers explicitly return `not_configured` until credentials are securely connected.
-- Infrastructure registry includes a per-provider Check action and latest health result display.
+- Browser code contains only the Supabase URL and publishable key.
+- Never commit Supabase service-role credentials or provider secrets.
+- Provider secret values are not stored in Postgres. The dashboard database stores metadata and vault references only.
+- Provider credentials belong in Supabase Edge Function Secrets (or a dedicated vault). The health function reads them server-side.
+- The health probes are read-only and use fixed provider endpoints; do not turn them into arbitrary URL fetchers.
+- RLS policies and Edge Functions authorize using trusted `app_metadata.role`.
+- Do not add a public owner-claim endpoint or browser-side role editor.
+- Operation approvals are not execution permission for an external production system. Execution adapters, idempotency, rollback and per-action audit controls are still required.
 
-- Provider health history table and server-side `cc-provider-health` function deployed (JWT + trusted role checks).
-- Server-side read-only probes are implemented for the configured provider catalog. Provider credentials, where required, must be added as Supabase Edge Function secrets; no credentials are stored in browser or DB.
-- Infrastructure UI has per-provider Check controls and health history display.
+## Provider health secrets
 
-- Read-only health probes now cover all ten catalog providers; credentials remain server-side Supabase Edge Function secrets.
-- Provider health function source is versioned under `supabase/functions/cc-provider-health/`.
+Only configure credentials for providers that should be probed. Use Supabase Dashboard → Edge Functions → Secrets. Never paste secret values into chat, SQL, browser storage or GitHub.
 
-## Next
-1. Create/confirm the owner's Auth account and assign its trusted `app_metadata.role=owner` securely.
-2. Verify sign-in, role-gated reads, audit writes and RLS denial for non-admin accounts.
-3. Add server-side functions for provider integration management.
-4. Connect providers one at a time with least-privilege credentials.
+| Provider | Edge Function secret names |
+|---|---|
+| GitHub | `CC_GITHUB_TOKEN` |
+| GitLab | `CC_GITLAB_TOKEN` |
+| Vercel | `CC_VERCEL_TOKEN` |
+| Cloudflare | `CC_CLOUDFLARE_TOKEN` |
+| Netlify | `CC_NETLIFY_TOKEN` |
+| Render | `CC_RENDER_API_KEY` |
+| Railway | `CC_RAILWAY_API_TOKEN` |
+| Cloudinary | `CC_CLOUDINARY_CLOUD_NAME`, `CC_CLOUDINARY_API_KEY`, `CC_CLOUDINARY_API_SECRET` |
+| Google Cloud Secret Manager | `CC_GCP_ACCESS_TOKEN`, `CC_GCP_PROJECT_ID` |
+| Supabase | Uses the function's own project URL and publishable key |
 
-## Phase 4 — Monitoring foundation
-- Monitoring page now reads the latest 20 real provider health-check records for authorized owner/admin users.
-- Summary counts are calculated from each provider's latest recorded check; historical checks are shown separately.
-- Manual refresh reloads database records. No synthetic uptime, availability percentage, or latency trend is presented.
-- These are point-in-time provider probes, not continuous service monitoring. Continuous uptime, error-rate and usage telemetry require connected hosting/observability sources.
+Use minimum read-only scopes. A successful identity/API probe confirms only that the tested endpoint accepted the credential; it does not prove every integration capability is configured.
 
-- Phase 4 monitoring foundation added: authorized users can review latest provider health history and refresh results; continuous uptime polling is not yet enabled.
-- Phase 4 performance hardening adds the health-check actor index and separates provider catalog owner write policies from privileged reads.
+## Edge Functions
 
-- Phase 5 controlled operations queue added: owner/admin requests, owner-only approval/rejection, and server-side audit trail. Approvals do not execute production actions yet.
+| Function | Deployed version | JWT verification |
+|---|---:|---|
+| `cc-audit-write` | 2 | Enabled |
+| `cc-provider-health` | 3 | Enabled |
+| `cc-operation-review` | 3 | Enabled |
 
-## Order 2 — audit and controlled-review hardening
-- Added the previously deployed controlled-operations request-queue SQL as a versioned migration.
-- Added a transactional review function: the request status change and its audit event commit together or roll back together.
-- Updated `cc-operation-review` to call the transaction through the service-role backend; the Edge Function still requires a verified owner session.
-- Operation request creation now attempts a server-side audit write and clearly warns if the audit event cannot be confirmed.
-- Live owner/non-owner smoke tests remain pending until the first owner account is provisioned.
+## Monitoring limitations
 
-## Order 3 — security and access hardening
-- Hardened `cc-audit-write` (ACTIVE version 2) to reject sensitive-looking audit field names, bearer-token strings, private-key PEM material and excessive nesting.
-- Updated the dashboard's database-error fallback to clear stale monitoring and operation queue data rather than leaving previously loaded records visible.
-- Corrected the Security & Audit panel's status text to reflect that server-side audit writes are enabled; successful live owner tests remain pending.
-- Confirmed all six `cc_*` public tables have RLS enabled. The intended owner email still has no Auth user, so owner provisioning and real user-role smoke tests cannot yet be completed.
+- Manual provider checks create timestamped history records.
+- Latest status counts are based on the most recent stored result per provider.
+- No fabricated uptime percentage, SLA, latency trend or continuous alerting is shown.
+- Scheduled polling, alert delivery and external observability ingestion remain future work.
+
+## Owner setup and launch gate
+
+See [First Owner Setup](docs/FIRST_OWNER_SETUP.md). The intended owner account must be created and email-verified, then provisioned by a trusted administrator with `app_metadata.role = "owner"`. The last account check found no Auth user for the intended owner email, so owner-only end-to-end tests remain outstanding.
+
+Before launch:
+1. Provision the first owner securely and sign in again to refresh the JWT.
+2. Verify owner access, audit writes and operation approval.
+3. Verify a normal authenticated account is denied privileged reads and writes.
+4. Configure only the required provider secrets and test each provider independently.
+5. Test the deployed website on mobile and desktop.
+6. Keep production operation execution disabled until dedicated server-side adapters and safeguards are reviewed.
+
+## Current completion boundary
+
+The foundation, database/RLS, provider registry, manual health-check infrastructure and controlled request/review queue are implemented. Authentication acceptance testing, actual provider integrations beyond read-only probes, continuous monitoring, production operation execution and final live-browser launch testing are not complete.
