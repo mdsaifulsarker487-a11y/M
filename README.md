@@ -48,3 +48,5 @@ Internal DOLFish ecosystem management dashboard.
 
 - Phase 4 monitoring foundation added: authorized users can review latest provider health history and refresh results; continuous uptime polling is not yet enabled.
 - Phase 4 performance hardening adds the health-check actor index and separates provider catalog owner write policies from privileged reads.
+
+- Phase 5 controlled operations queue added: owner/admin requests, owner-only approval/rejection, and server-side audit trail. Approvals do not execute production actions yet.
