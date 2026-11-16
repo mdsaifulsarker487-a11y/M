@@ -19,7 +19,7 @@ panel.innerHTML = `
         <button class="ghost" type="button" id="auth-signup">Create account</button>
       </div>
     </form>
-    <button class="auth-logout" id="auth-logout" hidden>Sign out</button>
+    <div class="auth-actions"><button class="ghost" type="button" id="auth-refresh" hidden>Refresh access</button><button class="auth-logout" id="auth-logout" hidden>Sign out</button></div>
   </div>`;
 host.insertBefore(panel, host.querySelector(".profile"));
 
@@ -30,6 +30,7 @@ const status = panel.querySelector("#auth-status");
 const submit = panel.querySelector("#auth-submit");
 const signup = panel.querySelector("#auth-signup");
 const logout = panel.querySelector("#auth-logout");
+const refresh = panel.querySelector("#auth-refresh");
 let mode = "signin";
 
 openBtn.addEventListener("click", () => { popover.hidden = !popover.hidden; });
@@ -49,6 +50,7 @@ function setSignedIn(user) {
     form.hidden = false;
     signup.hidden = false;
     logout.hidden = true;
+    refresh.hidden = true;
     showMessage("Sign in with your owner account.");
     publishAuth(null);
     return;
@@ -57,6 +59,7 @@ function setSignedIn(user) {
   form.hidden = true;
   signup.hidden = true;
   logout.hidden = false;
+  refresh.hidden = false;
   const role = user.app_metadata?.role;
   showMessage(role === "owner" || role === "admin"
     ? `Signed in · ${role} access enabled.`
@@ -89,6 +92,22 @@ signup.addEventListener("click", () => {
   submit.textContent = mode === "signup" ? "Create account" : "Sign in";
   signup.textContent = mode === "signup" ? "Back to sign in" : "Create account";
   panel.querySelector("#auth-password").autocomplete = mode === "signup" ? "new-password" : "current-password";
+});
+refresh.addEventListener("click", async () => {
+  refresh.disabled = true;
+  showMessage("Refreshing your secure session…");
+  try {
+    const { data, error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+    setSignedIn(data.session?.user ?? null);
+    showMessage(data.session?.user?.app_metadata?.role
+      ? `Session refreshed · ${data.session.user.app_metadata.role} role loaded.`
+      : "Session refreshed. No owner/admin role is assigned to this account.");
+  } catch (error) {
+    showMessage(error.message || "Could not refresh session.", true);
+  } finally {
+    refresh.disabled = false;
+  }
 });
 logout.addEventListener("click", async () => {
   const { error } = await supabase.auth.signOut();
