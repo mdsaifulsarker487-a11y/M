@@ -16,13 +16,13 @@ create table if not exists public.cc_operation_requests (
   )
 );
 create index if not exists cc_operation_requests_status_created_idx on public.cc_operation_requests(status,created_at desc);
-create index if not exists cc_operation_requests_requested_by_created_idx on public.cc_operation_requests(requested_by,created_at desc);
+create index if not exists cc_operation_requests_requested_by_idx on public.cc_operation_requests(requested_by,created_at desc);
 create index if not exists cc_operation_requests_reviewed_by_idx on public.cc_operation_requests(reviewed_by);
 alter table public.cc_operation_requests enable row level security;
 drop policy if exists "cc_operation_requests_read_privileged" on public.cc_operation_requests;
 create policy "cc_operation_requests_read_privileged" on public.cc_operation_requests for select to authenticated using ((select auth.jwt()->'app_metadata'->>'role') in ('owner','admin'));
-drop policy if exists "cc_operation_requests_insert_privileged" on public.cc_operation_requests;
-create policy "cc_operation_requests_insert_privileged" on public.cc_operation_requests for insert to authenticated with check (
+drop policy if exists "cc_operation_requests_create_privileged" on public.cc_operation_requests;
+create policy "cc_operation_requests_create_privileged" on public.cc_operation_requests for insert to authenticated with check (
   (select auth.jwt()->'app_metadata'->>'role') in ('owner','admin')
   and requested_by = (select auth.uid())
   and status = 'pending'
