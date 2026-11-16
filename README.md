@@ -30,6 +30,9 @@ Internal DOLFish ecosystem management dashboard.
 - Supabase Auth plus GitHub, GitLab, Vercel, Cloudflare and Netlify server-side read-only health probes are implemented. Provider tokens remain optional Edge Function secrets; no credentials are stored in browser or DB.
 - Infrastructure UI has per-provider Check controls and health history display.
 
+- Read-only health probes now cover all ten catalog providers; credentials remain server-side Supabase Edge Function secrets.
+- Provider health function source is versioned under `supabase/functions/cc-provider-health/`.
+
 ## Next
 1. Create/confirm the owner's Auth account and assign its trusted `app_metadata.role=owner` securely.
 2. Verify sign-in, role-gated reads, audit writes and RLS denial for non-admin accounts.
