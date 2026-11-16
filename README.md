@@ -22,7 +22,8 @@ Internal DOLFish ecosystem management dashboard.
 - Provider catalog deployed with 10 providers, approved auth methods, initial least-privilege scopes, capabilities and official documentation links.
 - Provider catalog RLS enabled; read access is owner/admin and management is owner-only.
 - Infrastructure view now renders the live provider integration registry for authorized users.
-\n- Provider health-check history table deployed with privileged read-only RLS.
+
+- Provider health-check history table deployed with privileged read-only RLS.
 - Server-side `cc-provider-health` Edge Function deployed with JWT verification and trusted owner/admin role checks. It probes Supabase Auth health; other providers explicitly return `not_configured` until credentials are securely connected.
 - Infrastructure registry includes a per-provider Check action and latest health result display.
 
@@ -38,3 +39,9 @@ Internal DOLFish ecosystem management dashboard.
 2. Verify sign-in, role-gated reads, audit writes and RLS denial for non-admin accounts.
 3. Add server-side functions for provider integration management.
 4. Connect providers one at a time with least-privilege credentials.
+
+## Phase 4 — Monitoring foundation
+- Monitoring page now reads the latest 20 real provider health-check records for authorized owner/admin users.
+- Summary counts are calculated from each provider's latest recorded check; historical checks are shown separately.
+- Manual refresh reloads database records. No synthetic uptime, availability percentage, or latency trend is presented.
+- These are point-in-time provider probes, not continuous service monitoring. Continuous uptime, error-rate and usage telemetry require connected hosting/observability sources.
