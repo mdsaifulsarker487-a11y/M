@@ -30,3 +30,15 @@ Do not create a public "claim owner" endpoint. Do not let a browser-supplied ema
 - Authorization policies must continue to use trusted `auth.jwt()->'app_metadata'->>'role'`.
 - The dashboard may show demo inventory to unauthorized users, but must not expose live database rows.
 - Secret values belong in a dedicated vault or provider environment variables. The database stores references only.
+
+
+## Session refresh
+
+After the trusted administrator updates `app_metadata.role`, the user can sign out and sign in again. The dashboard also includes a **Refresh access** action that requests a fresh Supabase session so the latest trusted app metadata can be loaded. This action does not grant or change any role.
+
+## Current project-specific status
+
+- The configured Supabase project is active and its three Control Center tables have RLS enabled.
+- No Auth user was found for the intended owner email during the last account check. The owner must first create and verify their account.
+- No owner role has been assigned by this repository or dashboard.
+- Do not add a browser-side role editor or public role-claim endpoint.
