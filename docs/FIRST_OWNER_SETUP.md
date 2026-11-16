@@ -42,3 +42,24 @@ After the trusted administrator updates `app_metadata.role`, the user can sign o
 - No Auth user was found for the intended owner email during the last account check. The owner must first create and verify their account.
 - No owner role has been assigned by this repository or dashboard.
 - Do not add a browser-side role editor or public role-claim endpoint.
+
+
+## Audit function verification (2026-11-16)
+
+- Edge Function `cc-audit-write` is deployed and ACTIVE (version 1) with platform JWT verification enabled.
+- The function validates the caller's token with Supabase Auth, checks trusted `app_metadata.role` for `owner` or `admin`, and derives `actor_user_id` from the verified Auth user.
+- The function writes audit rows server-side. Do not grant direct browser INSERT access to `cc_audit_events`.
+- The function has not yet had a successful owner/admin insert test because the intended owner account was not found in `auth.users` at the latest check.
+
+### Finish the owner test
+
+1. In the dashboard, create an account using the intended owner email and complete email verification.
+2. In Supabase Dashboard → Authentication → Users, locate that exact verified account and copy its user ID.
+3. Use a trusted administrator-only Admin API process to set `app_metadata.role = "owner"`. Never use SQL from the browser, `user_metadata`, or a public claim endpoint for this.
+4. Sign out and sign back in (or use **Refresh access**).
+5. Invoke `cc-audit-write` from the authenticated client with a harmless test event, for example:
+   `{ action: "security.owner_access_test", target_type: "system", target_id: "control-center", details: { test: true } }`.
+6. Confirm HTTP 201 and that the event appears in the Audit Events panel.
+7. Sign in with a separate account that has no trusted role and confirm the function returns HTTP 403. An unauthenticated call should be rejected by JWT verification.
+
+Do not share passwords, access tokens, publishable/secret API keys, or service-role credentials in chat. The successful owner and non-owner tests are required before marking Phase 2 complete.
