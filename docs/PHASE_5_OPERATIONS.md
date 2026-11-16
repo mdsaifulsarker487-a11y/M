@@ -19,3 +19,11 @@
 ## Verification still required
 - Owner account and trusted owner role are not yet provisioned.
 - Authenticated request submission, approval/rejection and audit writes have not yet been smoke-tested.
+
+## Order 2 hardening
+- Operation review now runs through `cc_review_operation_request`, a database transaction that locks the pending request, changes its review state and inserts the audit event atomically.
+- The RPC is executable only by `service_role`; browser roles `anon` and `authenticated` cannot call it directly.
+- `cc-operation-review` Edge Function version 2 calls the transaction after verifying a signed-in owner from trusted `app_metadata`.
+- Operation request creation calls `cc-audit-write`; the UI reports if the audit write cannot be confirmed.
+- Supabase migration filenames in the repository are aligned with the deployed migration versions.
+- Security and Health Advisors returned no lints after this change. Performance Advisor reports only informational unused-index notices because the tables have not yet accumulated production traffic.
