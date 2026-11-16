@@ -9,13 +9,14 @@ const demoProjects = [
 const demoProviders = ["GitHub","GitLab","Vercel","Render","Railway","Netlify","Cloudflare","Supabase","Cloudinary","Google Cloud Secret Manager"].map(name=>({display_name:name,provider:name.toLowerCase().replaceAll(" ","-"),status:"pending",secret_reference:null}));
 let currentProjects = demoProjects;
 let currentProviders = demoProviders;
+let currentAuditEvents = [];
 let dataMode = "demo";
 
 function safeText(value) { return String(value ?? ""); }
 function makeCard({name,description,slug,status,tags=[]},kind="project") {
   const article=document.createElement("article"); article.className="project";
   const top=document.createElement("div"); top.className="projecttop";
-  const icon=document.createElement("div"); icon.className="picon"; icon.textContent=safeText((name||"??").split(/\\s+/).map(x=>x[0]).join("").slice(0,2)).toUpperCase();
+  const icon=document.createElement("div"); icon.className="picon"; icon.textContent=safeText((name||"??").split(/\s+/).map(x=>x[0]).join("").slice(0,2)).toUpperCase();
   const titleWrap=document.createElement("div"); const h=document.createElement("h3"); h.textContent=safeText(name);
   const small=document.createElement("small"); small.textContent=kind==="project"?"DOLFish ecosystem":"Provider integration";
   titleWrap.append(h,small);
@@ -46,6 +47,43 @@ function renderAll() {
   renderCards("allProjects",currentProjects);
   renderCards("providers",currentProviders.map(p=>({...p,description:p.secret_reference?"Vault reference configured (value hidden).":"Connection metadata only. No secret values are stored here.",tags:[p.provider||"Provider",p.secret_reference?"Vault reference":"No vault reference"]})),"provider");
   updateStats();
+  renderAuditEvents();
+}
+function renderAuditEvents() {
+  const el = document.getElementById("auditEvents");
+  if (!el) return;
+  el.replaceChildren();
+  if (dataMode !== "live") {
+    const p = document.createElement("p");
+    p.className = "emptyhint";
+    p.textContent = "Sign in with an authorized owner/admin account to view recorded audit events.";
+    el.append(p);
+    return;
+  }
+  if (!currentAuditEvents.length) {
+    const p = document.createElement("p");
+    p.className = "emptyhint";
+    p.textContent = "No audit events have been recorded yet.";
+    el.append(p);
+    return;
+  }
+  currentAuditEvents.forEach(event => {
+    const row = document.createElement("div");
+    row.className = "rowitem";
+    const info = document.createElement("div");
+    const strong = document.createElement("strong");
+    strong.textContent = safeText(event.action || "System event");
+    const small = document.createElement("small");
+    const target = [event.target_type, event.target_id].filter(Boolean).join(" · ");
+    const when = event.created_at ? new Date(event.created_at).toLocaleString() : "Time unavailable";
+    small.textContent = [target, when].filter(Boolean).join(" — ");
+    info.append(strong, small);
+    const tag = document.createElement("span");
+    tag.className = "demo";
+    tag.textContent = "AUDIT";
+    row.append(info, tag);
+    el.append(row);
+  });
 }
 renderAll();
 
@@ -67,21 +105,28 @@ async function loadLiveData({user,role,supabase}) {
     dataMode="demo";
     currentProjects=demoProjects;
     currentProviders=demoProviders;
+    currentAuditEvents=[];
     renderAll();
     return;
   }
-  const [projectResult,providerResult]=await Promise.all([
+  const [projectResult,providerResult,auditResult]=await Promise.all([
     supabase.from("cc_projects").select("id,name,slug,description,lifecycle_status,updated_at").order("name"),
-    supabase.from("cc_provider_connections").select("id,provider,display_name,status,secret_reference,updated_at").order("display_name")
+    supabase.from("cc_provider_connections").select("id,provider,display_name,status,secret_reference,updated_at").order("display_name"),
+    supabase.from("cc_audit_events").select("id,action,target_type,target_id,created_at").order("created_at",{ascending:false}).limit(10)
   ]);
-  if(projectResult.error || providerResult.error) {
-    console.error("Control Center data load failed",projectResult.error||providerResult.error);
+  if(projectResult.error || providerResult.error || auditResult.error) {
+    console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error);
     dataMode="restricted";
+    currentProjects=demoProjects;
+    currentProviders=demoProviders;
+    currentAuditEvents=[];
+    renderAll();
     const pill=document.querySelector(".topright .pill"); if(pill)pill.textContent="● Database access error";
     return;
   }
   currentProjects=projectResult.data||[];
   currentProviders=(providerResult.data||[]).map(p=>({...p,name:p.display_name||p.provider}));
+  currentAuditEvents=auditResult.data||[];
   dataMode="live";
   renderAll();
 }
