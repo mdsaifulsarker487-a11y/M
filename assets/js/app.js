@@ -155,13 +155,15 @@ async function loadLiveData({user,role,supabase}) {
     currentProjects=demoProjects;
     currentProviders=demoProviders;
     currentAuditEvents=[];
+    currentCatalog=[];
     renderAll();
     return;
   }
   const [projectResult,providerResult,auditResult,catalogResult]=await Promise.all([
     supabase.from("cc_projects").select("id,name,slug,description,lifecycle_status,updated_at").order("name"),
     supabase.from("cc_provider_connections").select("id,provider,display_name,status,secret_reference,updated_at").order("display_name"),
-    supabase.from("cc_audit_events").select("id,action,target_type,target_id,created_at").order("created_at",{ascending:false}).limit(10)
+    supabase.from("cc_audit_events").select("id,action,target_type,target_id,created_at").order("created_at",{ascending:false}).limit(10),
+    supabase.from("cc_provider_catalog").select("provider,display_name,category,auth_method,minimum_scopes,capabilities,docs_url,connection_strategy").order("display_name")
   ]);
   if(projectResult.error || providerResult.error || auditResult.error || catalogResult.error) {
     console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error||catalogResult.error);
@@ -169,6 +171,7 @@ async function loadLiveData({user,role,supabase}) {
     currentProjects=demoProjects;
     currentProviders=demoProviders;
     currentAuditEvents=[];
+    currentCatalog=[];
     renderAll();
     const pill=document.querySelector(".topright .pill"); if(pill)pill.textContent="● Database access error";
     return;
@@ -176,6 +179,7 @@ async function loadLiveData({user,role,supabase}) {
   currentProjects=projectResult.data||[];
   currentProviders=(providerResult.data||[]).map(p=>({...p,name:p.display_name||p.provider}));
   currentAuditEvents=auditResult.data||[];
+  currentCatalog=catalogResult.data||[];
   dataMode="live";
   renderAll();
 }
