@@ -11,6 +11,8 @@ let currentProjects = demoProjects;
 let currentProviders = demoProviders;
 let currentAuditEvents = [];
 let dataMode = "demo";
+let currentUser = null;
+let currentRole = null;
 
 function safeText(value) { return String(value ?? ""); }
 function makeCard({name,description,slug,status,tags=[]},kind="project") {
@@ -35,12 +37,31 @@ function renderCards(target,list,kind="project") {
 }
 function updateStats() {
   const stats=document.querySelectorAll("#overview .stat");
-  if(stats[0]){stats[0].querySelector(".statnum").textContent=String(currentProjects.length);stats[0].querySelector(".statnote").textContent=dataMode==="live"?"Live database records":"Preview inventory · sign in for live data";}
-  if(stats[1]){const connected=currentProviders.filter(p=>["connected","active"].includes(String(p.status).toLowerCase())).length;stats[1].querySelector(".statnum").innerHTML=connected+' <small>live</small>';stats[1].querySelector(".statnote").textContent=dataMode==="live"?"Provider metadata from database":"No live provider data loaded";}
+  if(stats[0]){stats[0].querySelector(".statnum").textContent=String(currentProjects.length);stats[0].querySelector(".statnote").textContent=dataMode==="live"?"Live database records":dataMode==="restricted"?"Authenticated · role not approved":"Preview inventory · sign in for live data";}
+  if(stats[1]){const connected=currentProviders.filter(p=>["connected","active"].includes(String(p.status).toLowerCase())).length;stats[1].querySelector(".statnum").innerHTML=connected+' <small>live</small>';stats[1].querySelector(".statnote").textContent=dataMode==="live"?"Provider metadata from database":dataMode==="restricted"?"Role approval required":"No live provider data loaded";}
   const pill=document.querySelector(".topright .pill");
-  if(pill) pill.textContent=dataMode==="live"?"● Live database":"● Demo workspace";
+  if(pill) pill.textContent=dataMode==="live"?"● Live database":dataMode==="restricted"?"● Access restricted":"● Demo workspace";
   const projectPill=document.querySelector("#projects .toolbar .pill");
   if(projectPill) projectPill.textContent=`${currentProjects.length} registered · ${dataMode==="live"?"live database":"preview inventory"}`;
+}
+function renderAccessSummary() {
+  const el = document.getElementById("accessSummary");
+  if (!el) return;
+  el.replaceChildren();
+  const signedIn = Boolean(currentUser);
+  const privileged = ["owner", "admin"].includes(currentRole);
+  const title = document.createElement("strong");
+  title.textContent = privileged ? `Access level: ${currentRole.toUpperCase()}` : signedIn ? "Access level: NOT ASSIGNED" : "Access level: SIGNED OUT";
+  const detail = document.createElement("p");
+  detail.className = "emptyhint";
+  detail.textContent = privileged
+    ? (currentRole === "owner" ? "Owner access is active. You can review ecosystem data; provider changes remain owner-only under database policies." : "Administrator access is active. Provider metadata changes remain restricted to the owner.")
+    : signedIn ? "Your account is authenticated, but no trusted owner/admin role is assigned. Live records remain blocked by database security policies."
+    : "Sign in with an approved account to access live Control Center records.";
+  const badge = document.createElement("span");
+  badge.className = "status";
+  badge.textContent = privileged ? "AUTHORIZED" : "RESTRICTED";
+  el.append(title, badge, detail);
 }
 function renderAll() {
   renderCards("projectCards",currentProjects.slice(0,6));
