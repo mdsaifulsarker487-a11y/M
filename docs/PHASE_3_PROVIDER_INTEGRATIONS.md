@@ -34,9 +34,20 @@ The deployed health function now supports authenticated read-only identity probe
 - Netlify: `CC_NETLIFY_TOKEN` → `GET /api/v1/user`
 - Supabase: existing Auth health probe (uses project runtime configuration).
 
-Each probe runs server-side only after verifying the Supabase user and trusted owner/admin role. Missing secrets are reported as `not_configured`; non-success provider responses are not marked healthy. The remaining catalog providers (Render, Railway, Cloudinary and Google Cloud Secret Manager) still need provider-specific probes.
+Each probe runs server-side only after verifying the Supabase user and trusted owner/admin role. Missing secrets are reported as `not_configured`; non-success provider responses are not marked healthy. Render, Railway, Cloudinary and Google Cloud Secret Manager now also have server-side read-only probes. Required optional secret names are documented below.
 
-Configure the optional tokens as Supabase Edge Function secrets through the Supabase dashboard's Edge Functions → Secrets area. Do not paste tokens into ChatGPT, the browser, SQL tables or GitHub.
+Configure optional credentials in Supabase Edge Function Secrets (Edge Functions → Secrets):
+- `CC_GITHUB_TOKEN`
+- `CC_GITLAB_TOKEN`
+- `CC_VERCEL_TOKEN`
+- `CC_CLOUDFLARE_TOKEN`
+- `CC_NETLIFY_TOKEN`
+- `CC_RENDER_API_KEY`
+- `CC_RAILWAY_API_TOKEN`
+- `CC_CLOUDINARY_CLOUD_NAME`, `CC_CLOUDINARY_API_KEY`, `CC_CLOUDINARY_API_SECRET`
+- `CC_GCP_ACCESS_TOKEN`, `CC_GCP_PROJECT_ID`
+
+The GCP token should be short-lived and limited to Secret Manager read-only access. Do not paste tokens into ChatGPT, browser code, SQL tables or GitHub.
 
 ## Test limitation
 A live authenticated health-check call has not yet been run because the owner account/role is still not provisioned. The function and database table are deployed.
