@@ -19,7 +19,10 @@ Internal DOLFish ecosystem management dashboard.
 - Audit write function is deployed, but authorized end-to-end insert testing awaits owner provisioning.
 - Do not enable provider operations until each operation and its audit write are implemented server-side.
 
-- Provider catalog deployed with 10 providers, approved auth methods, initial least-privilege scopes, capabilities and official documentation links.\n- Provider catalog RLS enabled; read access is owner/admin and management is owner-only.\n- Infrastructure view now renders the live provider integration registry for authorized users.\n\n## Next
+- Provider catalog deployed with 10 providers, approved auth methods, initial least-privilege scopes, capabilities and official documentation links.
+- Provider catalog RLS enabled; read access is owner/admin and management is owner-only.
+- Infrastructure view now renders the live provider integration registry for authorized users.
+\n## Next
 1. Create/confirm the owner's Auth account and assign its trusted `app_metadata.role=owner` securely.
 2. Verify sign-in, role-gated reads, audit writes and RLS denial for non-admin accounts.
 3. Add server-side functions for provider integration management.
