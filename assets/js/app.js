@@ -9,7 +9,8 @@ const demoProjects = [
 const demoProviders = ["GitHub","GitLab","Vercel","Render","Railway","Netlify","Cloudflare","Supabase","Cloudinary","Google Cloud Secret Manager"].map(name=>({display_name:name,provider:name.toLowerCase().replaceAll(" ","-"),status:"pending",secret_reference:null}));
 let currentProjects = demoProjects;
 let currentProviders = demoProviders;
-let currentAuditEvents = [];\nlet currentCatalog = [];
+let currentAuditEvents = [];
+let currentCatalog = [];
 let currentHealthChecks = [];
 let dataMode = "demo";
 let currentUser = null;
@@ -115,13 +116,51 @@ function renderIntegrationCatalog() {
     health.append(checkButton);row.append(health);body.append(row);
   });
 }
-\nfunction renderAll() {
+
+
+function renderMonitoring() {
+  const summary=document.getElementById("monitoringSummary");
+  const body=document.getElementById("monitoringHistory");
+  const note=document.getElementById("monitoringNote");
+  if(!summary||!body||!note)return;
+  summary.replaceChildren();body.replaceChildren();
+  if(dataMode!=="live"){
+    note.textContent=dataMode==="restricted"?"Your account does not have an approved monitoring role.":"Sign in with an approved owner/admin account to load real provider health history.";
+    const p=document.createElement("p");p.className="emptyhint";p.textContent="No live telemetry is shown while access is unavailable.";body.append(p);return;
+  }
+  note.textContent="Provider health history from the database. These checks are point-in-time probes, not continuous uptime monitoring.";
+  const latestByProvider=new Map();
+  currentHealthChecks.forEach(check=>{if(!latestByProvider.has(check.provider))latestByProvider.set(check.provider,check);});
+  const statuses=[["Healthy","healthy"],["Unhealthy","unhealthy"],["Not configured","not_configured"],["Errors","error"]];
+  statuses.forEach(([label,key])=>{
+    const card=document.createElement("div");card.className="stat monitor-stat";
+    const head=document.createElement("div");head.className="stathead";head.textContent=label;
+    const value=document.createElement("div");value.className="statnum";value.textContent=String([...latestByProvider.values()].filter(x=>x.status===key).length);
+    const sub=document.createElement("div");sub.className="statnote";sub.textContent="Latest provider checks";
+    card.append(head,value,sub);summary.append(card);
+  });
+  const checks=[...currentHealthChecks].sort((a,b)=>new Date(b.checked_at)-new Date(a.checked_at)).slice(0,20);
+  if(!checks.length){const p=document.createElement("p");p.className="emptyhint";p.textContent="No health checks recorded yet. Open Infrastructure and run a provider Check after owner access is enabled.";body.append(p);return;}
+  checks.forEach(check=>{
+    const row=document.createElement("div");row.className="rowitem monitor-row";
+    const info=document.createElement("div");
+    const title=document.createElement("strong");title.textContent=check.provider;
+    const detail=document.createElement("small");
+    const parts=[check.checked_at?new Date(check.checked_at).toLocaleString():"Time unavailable",check.http_status?("HTTP "+check.http_status):"",check.latency_ms!==null&&check.latency_ms!==undefined?(check.latency_ms+" ms"):"",check.message||""].filter(Boolean);
+    detail.textContent=parts.join(" · ");info.append(title,detail);
+    const badge=document.createElement("span");badge.className="health-status "+check.status;badge.textContent=check.status;
+    row.append(info,badge);body.append(row);
+  });
+}
+
+function renderAll() {
   renderCards("projectCards",currentProjects.slice(0,6));
   renderCards("allProjects",currentProjects);
   renderCards("providers",currentProviders.map(p=>({...p,description:p.secret_reference?"Vault reference configured (value hidden).":"Connection metadata only. No secret values are stored here.",tags:[p.provider||"Provider",p.secret_reference?"Vault reference":"No vault reference"]})),"provider");
   updateStats();
   renderAuditEvents();
   renderAccessSummary();
+  renderMonitoring();
 }
 function renderAuditEvents() {
   const el = document.getElementById("auditEvents");
@@ -214,4 +253,11 @@ async function loadLiveData({user,role,supabase}) {
   renderAll();
 }
 window.addEventListener("dolfish:auth",event=>loadLiveData(event.detail));
+const refreshMonitoring=document.getElementById("refreshMonitoring");
+if(refreshMonitoring)refreshMonitoring.addEventListener("click",async()=>{
+  if(!currentUser||!["owner","admin"].includes(currentRole)||!window.dolfishSupabase)return;
+  refreshMonitoring.disabled=true;refreshMonitoring.textContent="Refreshing…";
+  try{await loadLiveData({user:currentUser,role:currentRole,supabase:window.dolfishSupabase});}
+  finally{refreshMonitoring.disabled=false;refreshMonitoring.textContent="Refresh data";}
+});
 if("serviceWorker"in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
