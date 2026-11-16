@@ -69,6 +69,7 @@ function renderAll() {
   renderCards("providers",currentProviders.map(p=>({...p,description:p.secret_reference?"Vault reference configured (value hidden).":"Connection metadata only. No secret values are stored here.",tags:[p.provider||"Provider",p.secret_reference?"Vault reference":"No vault reference"]})),"provider");
   updateStats();
   renderAuditEvents();
+  renderAccessSummary();
 }
 function renderAuditEvents() {
   const el = document.getElementById("auditEvents");
@@ -122,8 +123,10 @@ const lang=document.getElementById("lang");
 if(lang)lang.addEventListener("click",()=>{bn=!bn;document.documentElement.lang=bn?"bn":"en";lang.textContent=bn?"English":"বাংলা";document.querySelectorAll("[data-en]").forEach(el=>el.textContent=bn?el.dataset.bn:el.dataset.en);});
 
 async function loadLiveData({user,role,supabase}) {
+  currentUser = user || null;
+  currentRole = role || null;
   if(!user || !["owner","admin"].includes(role)) {
-    dataMode="demo";
+    dataMode = user ? "restricted" : "demo";
     currentProjects=demoProjects;
     currentProviders=demoProviders;
     currentAuditEvents=[];
