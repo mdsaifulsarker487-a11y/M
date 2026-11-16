@@ -63,3 +63,8 @@ After the trusted administrator updates `app_metadata.role`, the user can sign o
 7. Sign in with a separate account that has no trusted role and confirm the function returns HTTP 403. An unauthenticated call should be rejected by JWT verification.
 
 Do not share passwords, access tokens, publishable/secret API keys, or service-role credentials in chat. The successful owner and non-owner tests are required before marking Phase 2 complete.
+
+## Audit payload safety
+- `cc-audit-write` version 2 rejects audit detail objects containing sensitive-looking field names such as `token`, `secret`, `password`, `api_key`, `authorization` or `credential`.
+- It also rejects private-key PEM blocks and bearer-token strings in detail values, and rejects excessive nesting.
+- Audit details should contain identifiers, action summaries and non-sensitive metadata only. Never include raw provider responses or secret material.
