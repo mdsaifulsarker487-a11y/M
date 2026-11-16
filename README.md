@@ -57,3 +57,9 @@ Internal DOLFish ecosystem management dashboard.
 - Updated `cc-operation-review` to call the transaction through the service-role backend; the Edge Function still requires a verified owner session.
 - Operation request creation now attempts a server-side audit write and clearly warns if the audit event cannot be confirmed.
 - Live owner/non-owner smoke tests remain pending until the first owner account is provisioned.
+
+## Order 3 — security and access hardening
+- Hardened `cc-audit-write` (ACTIVE version 2) to reject sensitive-looking audit field names, bearer-token strings, private-key PEM material and excessive nesting.
+- Updated the dashboard's database-error fallback to clear stale monitoring and operation queue data rather than leaving previously loaded records visible.
+- Corrected the Security & Audit panel's status text to reflect that server-side audit writes are enabled; successful live owner tests remain pending.
+- Confirmed all six `cc_*` public tables have RLS enabled. The intended owner email still has no Auth user, so owner provisioning and real user-role smoke tests cannot yet be completed.
