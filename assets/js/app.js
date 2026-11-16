@@ -9,7 +9,7 @@ const demoProjects = [
 const demoProviders = ["GitHub","GitLab","Vercel","Render","Railway","Netlify","Cloudflare","Supabase","Cloudinary","Google Cloud Secret Manager"].map(name=>({display_name:name,provider:name.toLowerCase().replaceAll(" ","-"),status:"pending",secret_reference:null}));
 let currentProjects = demoProjects;
 let currentProviders = demoProviders;
-let currentAuditEvents = [];
+let currentAuditEvents = [];\nlet currentCatalog = [];
 let dataMode = "demo";
 let currentUser = null;
 let currentRole = null;
@@ -63,7 +63,32 @@ function renderAccessSummary() {
   badge.textContent = privileged ? "AUTHORIZED" : "RESTRICTED";
   el.append(title, badge, detail);
 }
-function renderAll() {
+
+function renderIntegrationCatalog() {
+  const body=document.getElementById("integrationCatalog");
+  if(!body)return;
+  body.replaceChildren();
+  if(dataMode!=="live" || !currentCatalog.length) {
+    const row=document.createElement("tr"),cell=document.createElement("td");
+    cell.colSpan=6;cell.textContent=dataMode==="live"?"No provider catalog records found.":"Sign in with an approved owner/admin account to view the integration registry.";
+    row.append(cell);body.append(row);return;
+  }
+  currentCatalog.forEach(item=>{
+    const row=document.createElement("tr");
+    const values=[
+      item.display_name,
+      String(item.category||"").replaceAll("_"," "),
+      item.auth_method,
+      (item.minimum_scopes||[]).join(", "),
+      (item.capabilities||[]).join(" · ")
+    ];
+    values.forEach(value=>{const td=document.createElement("td");td.textContent=safeText(value);row.append(td);});
+    const docs=document.createElement("td");
+    if(item.docs_url){const a=document.createElement("a");a.href=item.docs_url;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Provider docs ↗";a.className="catalog-link";docs.append(a);}else docs.textContent="—";
+    row.append(docs);body.append(row);
+  });
+}
+\nfunction renderAll() {
   renderCards("projectCards",currentProjects.slice(0,6));
   renderCards("allProjects",currentProjects);
   renderCards("providers",currentProviders.map(p=>({...p,description:p.secret_reference?"Vault reference configured (value hidden).":"Connection metadata only. No secret values are stored here.",tags:[p.provider||"Provider",p.secret_reference?"Vault reference":"No vault reference"]})),"provider");
@@ -133,13 +158,13 @@ async function loadLiveData({user,role,supabase}) {
     renderAll();
     return;
   }
-  const [projectResult,providerResult,auditResult]=await Promise.all([
+  const [projectResult,providerResult,auditResult,catalogResult]=await Promise.all([
     supabase.from("cc_projects").select("id,name,slug,description,lifecycle_status,updated_at").order("name"),
     supabase.from("cc_provider_connections").select("id,provider,display_name,status,secret_reference,updated_at").order("display_name"),
     supabase.from("cc_audit_events").select("id,action,target_type,target_id,created_at").order("created_at",{ascending:false}).limit(10)
   ]);
-  if(projectResult.error || providerResult.error || auditResult.error) {
-    console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error);
+  if(projectResult.error || providerResult.error || auditResult.error || catalogResult.error) {
+    console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error||catalogResult.error);
     dataMode="restricted";
     currentProjects=demoProjects;
     currentProviders=demoProviders;
