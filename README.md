@@ -45,3 +45,6 @@ Internal DOLFish ecosystem management dashboard.
 - Summary counts are calculated from each provider's latest recorded check; historical checks are shown separately.
 - Manual refresh reloads database records. No synthetic uptime, availability percentage, or latency trend is presented.
 - These are point-in-time provider probes, not continuous service monitoring. Continuous uptime, error-rate and usage telemetry require connected hosting/observability sources.
+
+- Phase 4 monitoring foundation added: authorized users can review latest provider health history and refresh results; continuous uptime polling is not yet enabled.
+- Phase 4 performance hardening adds the health-check actor index and separates provider catalog owner write policies from privileged reads.
