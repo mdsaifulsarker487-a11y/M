@@ -24,15 +24,18 @@ Deno.serve(async(req:Request)=>{
   if(decision!=="approved"&&decision!=="rejected")return reply(400,{error:"invalid_decision"});
   if(note.length>1000)return reply(400,{error:"review_note_too_long"});
   const admin=createClient(url,service,{auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:request,error:readError}=await admin.from("cc_operation_requests").select("id,status,operation_type,target_project").eq("id",id).maybeSingle();
-  if(readError)return reply(500,{error:"request_lookup_failed"});
-  if(!request)return reply(404,{error:"request_not_found"});
-  if(request.status!=="pending")return reply(409,{error:"request_already_reviewed",status:request.status});
-  const now=new Date().toISOString();
-  const {data:updated,error:updateError}=await admin.from("cc_operation_requests").update({status:decision,reviewed_by:user.id,reviewed_at:now,review_note:note||null}).eq("id",id).eq("status","pending").select("id,status,reviewed_at,review_note").maybeSingle();
-  if(updateError)return reply(500,{error:"review_update_failed"});
-  if(!updated)return reply(409,{error:"request_state_changed"});
-  const {error:auditError}=await admin.from("cc_audit_events").insert({actor_user_id:user.id,action:"operation_request_"+decision,target_type:"operation_request",target_id:id,details:{operation_type:request.operation_type,target_project:request.target_project,review_note:note||null}});
-  if(auditError)return reply(500,{error:"review_saved_but_audit_failed"});
-  return reply(200,{ok:true,request:updated});
+  const {data,error:reviewError}=await admin.rpc("cc_review_operation_request",{
+    p_request_id:id,
+    p_decision:decision,
+    p_reviewer_id:user.id,
+    p_note:note||null
+  });
+  if(reviewError){
+    const message=reviewError.message||"";
+    if(message.includes("request_not_found"))return reply(404,{error:"request_not_found"});
+    if(message.includes("request_already_reviewed")||reviewError.code==="40001")return reply(409,{error:"request_already_reviewed"});
+    console.error("Atomic operation review failed:",message);
+    return reply(500,{error:"review_transaction_failed"});
+  }
+  return reply(200,{ok:true,request:data});
 });
