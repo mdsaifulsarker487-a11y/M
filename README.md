@@ -26,6 +26,10 @@ Internal DOLFish ecosystem management dashboard.
 - Server-side `cc-provider-health` Edge Function deployed with JWT verification and trusted owner/admin role checks. It probes Supabase Auth health; other providers explicitly return `not_configured` until credentials are securely connected.
 - Infrastructure registry includes a per-provider Check action and latest health result display.
 
+- Provider health history table and server-side `cc-provider-health` function deployed (JWT + trusted role checks).
+- Supabase Auth health probe is implemented; other providers explicitly remain `not_configured` until secure credentials are connected.
+- Infrastructure UI has per-provider Check controls and health history display.
+
 ## Next
 1. Create/confirm the owner's Auth account and assign its trusted `app_metadata.role=owner` securely.
 2. Verify sign-in, role-gated reads, audit writes and RLS denial for non-admin accounts.
