@@ -274,6 +274,8 @@ async function loadLiveData({user,role,supabase}) {
     currentProviders=demoProviders;
     currentAuditEvents=[];
     currentCatalog=[];
+    currentHealthChecks=[];
+    currentOperationRequests=[];
     renderAll();
     const pill=document.querySelector(".topright .pill"); if(pill)pill.textContent="● Database access error";
     return;
