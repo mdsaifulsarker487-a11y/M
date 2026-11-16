@@ -25,6 +25,19 @@ The catalog is a plan/registry, not proof that any provider account is connected
 - Supabase check performs a real Auth health endpoint probe. Other providers return `not_configured` until server-side credentials are provisioned; no fake success is reported.
 - Infrastructure registry includes a Check action and displays the latest saved result.
 
+## Read-only provider probes
+The deployed health function now supports authenticated read-only identity probes for:
+- GitHub: `CC_GITHUB_TOKEN` → `GET https://api.github.com/user`
+- GitLab: `CC_GITLAB_TOKEN` → `GET https://gitlab.com/api/v4/user`
+- Vercel: `CC_VERCEL_TOKEN` → `GET https://api.vercel.com/v2/user`
+- Cloudflare: `CC_CLOUDFLARE_TOKEN` → `GET /client/v4/user/tokens/verify`
+- Netlify: `CC_NETLIFY_TOKEN` → `GET /api/v1/user`
+- Supabase: existing Auth health probe (uses project runtime configuration).
+
+Each probe runs server-side only after verifying the Supabase user and trusted owner/admin role. Missing secrets are reported as `not_configured`; non-success provider responses are not marked healthy. The remaining catalog providers (Render, Railway, Cloudinary and Google Cloud Secret Manager) still need provider-specific probes.
+
+Configure the optional tokens as Supabase Edge Function secrets through the Supabase dashboard's Edge Functions → Secrets area. Do not paste tokens into ChatGPT, the browser, SQL tables or GitHub.
+
 ## Test limitation
 A live authenticated health-check call has not yet been run because the owner account/role is still not provisioned. The function and database table are deployed.
 
