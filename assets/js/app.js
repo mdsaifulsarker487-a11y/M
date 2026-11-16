@@ -10,6 +10,7 @@ const demoProviders = ["GitHub","GitLab","Vercel","Render","Railway","Netlify","
 let currentProjects = demoProjects;
 let currentProviders = demoProviders;
 let currentAuditEvents = [];\nlet currentCatalog = [];
+let currentHealthChecks = [];
 let dataMode = "demo";
 let currentUser = null;
 let currentRole = null;
@@ -70,7 +71,7 @@ function renderIntegrationCatalog() {
   body.replaceChildren();
   if(dataMode!=="live" || !currentCatalog.length) {
     const row=document.createElement("tr"),cell=document.createElement("td");
-    cell.colSpan=6;cell.textContent=dataMode==="live"?"No provider catalog records found.":"Sign in with an approved owner/admin account to view the integration registry.";
+    cell.colSpan=7;cell.textContent=dataMode==="live"?"No provider catalog records found.":"Sign in with an approved owner/admin account to view the integration registry.";
     row.append(cell);body.append(row);return;
   }
   currentCatalog.forEach(item=>{
@@ -85,7 +86,33 @@ function renderIntegrationCatalog() {
     values.forEach(value=>{const td=document.createElement("td");td.textContent=safeText(value);row.append(td);});
     const docs=document.createElement("td");
     if(item.docs_url){const a=document.createElement("a");a.href=item.docs_url;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Provider docs ↗";a.className="catalog-link";docs.append(a);}else docs.textContent="—";
-    row.append(docs);body.append(row);
+    row.append(docs);
+    const health=document.createElement("td");
+    const latest=currentHealthChecks.find(check=>check.provider===item.provider);
+    const status=document.createElement("span");
+    status.className="health-status "+(latest?.status||"unknown");
+    status.textContent=latest?.status||"Not checked";
+    health.append(status);
+    const checkButton=document.createElement("button");
+    checkButton.className="check-provider";
+    checkButton.type="button";
+    checkButton.textContent="Check";
+    checkButton.addEventListener("click",async()=>{
+      const client=window.dolfishSupabase;
+      if(!client){status.textContent="Auth unavailable";return;}
+      checkButton.disabled=true;checkButton.textContent="Checking…";
+      try{
+        const {data,error}=await client.functions.invoke("cc-provider-health",{body:{provider:item.provider}});
+        if(error)throw error;
+        status.textContent=data.status+(data.latency_ms!==null?" · "+data.latency_ms+"ms":"");
+        status.className="health-status "+data.status;
+        const idx=currentHealthChecks.findIndex(check=>check.provider===item.provider);
+        const next={provider:item.provider,status:data.status,latency_ms:data.latency_ms,checked_at:data.checked_at,message:data.message};
+        if(idx>=0)currentHealthChecks[idx]=next;else currentHealthChecks.unshift(next);
+      }catch(error){status.textContent="Check failed";status.className="health-status error";console.error("Provider health check failed",error);}
+      finally{checkButton.disabled=false;checkButton.textContent="Check";}
+    });
+    health.append(checkButton);row.append(health);body.append(row);
   });
 }
 \nfunction renderAll() {
@@ -156,17 +183,19 @@ async function loadLiveData({user,role,supabase}) {
     currentProviders=demoProviders;
     currentAuditEvents=[];
     currentCatalog=[];
+    currentHealthChecks=[];
     renderAll();
     return;
   }
-  const [projectResult,providerResult,auditResult,catalogResult]=await Promise.all([
+  const [projectResult,providerResult,auditResult,catalogResult,healthResult]=await Promise.all([
     supabase.from("cc_projects").select("id,name,slug,description,lifecycle_status,updated_at").order("name"),
     supabase.from("cc_provider_connections").select("id,provider,display_name,status,secret_reference,updated_at").order("display_name"),
     supabase.from("cc_audit_events").select("id,action,target_type,target_id,created_at").order("created_at",{ascending:false}).limit(10),
-    supabase.from("cc_provider_catalog").select("provider,display_name,category,auth_method,minimum_scopes,capabilities,docs_url,connection_strategy").order("display_name")
+    supabase.from("cc_provider_catalog").select("provider,display_name,category,auth_method,minimum_scopes,capabilities,docs_url,connection_strategy").order("display_name"),
+    supabase.from("cc_provider_health_checks").select("provider,status,http_status,latency_ms,message,checked_at").order("checked_at",{ascending:false}).limit(30)
   ]);
-  if(projectResult.error || providerResult.error || auditResult.error || catalogResult.error) {
-    console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error||catalogResult.error);
+  if(projectResult.error || providerResult.error || auditResult.error || catalogResult.error || healthResult.error) {
+    console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error||catalogResult.error||healthResult.error);
     dataMode="restricted";
     currentProjects=demoProjects;
     currentProviders=demoProviders;
@@ -180,6 +209,7 @@ async function loadLiveData({user,role,supabase}) {
   currentProviders=(providerResult.data||[]).map(p=>({...p,name:p.display_name||p.provider}));
   currentAuditEvents=auditResult.data||[];
   currentCatalog=catalogResult.data||[];
+  currentHealthChecks=healthResult.data||[];
   dataMode="live";
   renderAll();
 }
