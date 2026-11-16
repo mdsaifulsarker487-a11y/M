@@ -27,7 +27,7 @@ Internal DOLFish ecosystem management dashboard.
 - Infrastructure registry includes a per-provider Check action and latest health result display.
 
 - Provider health history table and server-side `cc-provider-health` function deployed (JWT + trusted role checks).
-- Supabase Auth health probe is implemented; other providers explicitly remain `not_configured` until secure credentials are connected.
+- Supabase Auth plus GitHub, GitLab, Vercel, Cloudflare and Netlify server-side read-only health probes are implemented. Provider tokens remain optional Edge Function secrets; no credentials are stored in browser or DB.
 - Infrastructure UI has per-provider Check controls and health history display.
 
 ## Next
