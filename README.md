@@ -15,6 +15,15 @@ Internal DOLFish ecosystem management dashboard. It is a control plane for proje
 - Controlled operations queue supports request submission and owner approval/rejection. Approval records intent only; it does not deploy, restart, roll back or rotate secrets.
 - Operation review uses a server-side transactional RPC so the status change and audit event commit or roll back together.
 
+## API & Infrastructure Manager (new foundation)
+
+- A project-linked `cc_api_integrations` registry is deployed.
+- Records contain provider metadata, secret references, masked hints, environment scope and status — not raw API keys.
+- RLS is enabled. Owner/admin can read registry records; owner-only writes.
+- Target hosting integrations: Vercel, Netlify, Railway, Cloudflare and Render.
+- UI, credential vault workflow, provider adapters, environment-variable actions and deploy controls are not yet implemented.
+- See [API & Infrastructure Manager plan](docs/API_INFRASTRUCTURE_MANAGER.md).
+
 ## Security boundaries
 
 - Browser code contains only the Supabase URL and publishable key.
