@@ -383,3 +383,30 @@ if(operationForm)operationForm.addEventListener("submit",async event=>{
  }catch(err){console.error("Operation request failed",err);document.getElementById("operationFormMessage").textContent="Request failed. Check access and required fields.";}
  finally{submit.disabled=false;submit.textContent="Submit for approval";}
 });
+
+async function vercelEnvCall(payload){
+ if(dataMode!=="live"||currentRole!=="owner"||!window.dolfishSupabase)throw new Error("Owner sign-in required.");
+ const {data,error}=await window.dolfishSupabase.functions.invoke("cc-vercel-env",{body:payload});
+ if(error||data?.error)throw new Error(data?.error||error?.message||"Vercel request failed");return data;
+}
+async function loadVercelEnv(){
+ const project=document.getElementById("vercelEnvProject").value.trim(),message=document.getElementById("vercelEnvMessage"),body=document.getElementById("vercelEnvRows");
+ if(!project){message.textContent="Enter the Vercel project ID first.";return;}message.textContent="Loading…";body.replaceChildren();
+ try{const data=await vercelEnvCall({action:"env_list",project_id:project});
+ if(!data.items?.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=5;td.textContent="No environment variables found.";tr.append(td);body.append(tr);}
+ (data.items||[]).forEach(item=>{const tr=document.createElement("tr");[item.key,item.type,(item.target||[]).join(", "),item.updatedAt?new Date(item.updatedAt).toLocaleString():"—"].forEach(v=>{const td=document.createElement("td");td.textContent=safeText(v);tr.append(td);});
+ const td=document.createElement("td"),btn=document.createElement("button");btn.type="button";btn.className="check-provider";btn.textContent="Delete";btn.addEventListener("click",async()=>{if(!confirm("Delete Vercel variable "+item.key+"?"))return;btn.disabled=true;try{await vercelEnvCall({action:"env_delete",project_id:project,id:item.id});await loadVercelEnv();}catch(e){message.textContent=e.message;btn.disabled=false;}});td.append(btn);tr.append(td);body.append(tr);});
+ message.textContent="Loaded "+data.count+" variable records. Values are never returned.";
+ }catch(e){message.textContent=e.message;const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=5;td.textContent="Could not load variables. Check token scopes and setup.";tr.append(td);body.append(tr);}
+}
+const vercelRefresh=document.getElementById("vercelEnvRefresh");if(vercelRefresh)vercelRefresh.addEventListener("click",loadVercelEnv);
+const vercelForm=document.getElementById("vercelEnvForm");
+async function saveVercelEnv(action){
+ const message=document.getElementById("vercelEnvMessage"),value=document.getElementById("vercelEnvValue"),button=vercelForm.querySelector('button[type="submit"]'),targets=[...document.getElementById("vercelEnvTargets").selectedOptions].map(o=>o.value);
+ if(!targets.length){message.textContent="Select at least one target.";return;}if(!value.value){message.textContent="Enter a value.";return;}
+ button.disabled=true;message.textContent="Sending securely…";
+ try{await vercelEnvCall({action,project_id:document.getElementById("vercelEnvProject").value.trim(),key:document.getElementById("vercelEnvKey").value.trim(),value:value.value,target:targets});value.value="";message.textContent=action==="env_update"?"Update request completed.":"Variable created.";await loadVercelEnv();}
+ catch(e){message.textContent=e.message;}finally{value.value="";button.disabled=false;}
+}
+if(vercelForm)vercelForm.addEventListener("submit",e=>{e.preventDefault();saveVercelEnv("env_create");});
+const vercelUpdate=document.getElementById("vercelEnvUpdate");if(vercelUpdate)vercelUpdate.addEventListener("click",()=>saveVercelEnv("env_update"));
