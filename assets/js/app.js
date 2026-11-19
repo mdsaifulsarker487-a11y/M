@@ -410,3 +410,26 @@ async function saveVercelEnv(action){
 }
 if(vercelForm)vercelForm.addEventListener("submit",e=>{e.preventDefault();saveVercelEnv("env_create");});
 const vercelUpdate=document.getElementById("vercelEnvUpdate");if(vercelUpdate)vercelUpdate.addEventListener("click",()=>saveVercelEnv("env_update"));
+
+
+async function vercelDeployCall(payload){
+ if(dataMode!=="live"||currentRole!=="owner"||!window.dolfishSupabase)throw new Error("Owner sign-in required.");
+ const {data,error}=await window.dolfishSupabase.functions.invoke("cc-vercel-deploy",{body:payload});
+ if(error||data?.error)throw new Error(data?.error||error?.message||"Redeployment request failed");return data;
+}
+const vercelDeployForm=document.getElementById("vercelDeployForm");
+if(vercelDeployForm)vercelDeployForm.addEventListener("submit",async event=>{
+ event.preventDefault();
+ const message=document.getElementById("vercelDeployMessage"),button=vercelDeployForm.querySelector('button[type="submit"]');
+ const deploymentId=document.getElementById("vercelDeploymentId").value.trim();
+ const confirmProduction=document.getElementById("vercelProductionConfirm").checked;
+ if(!/^dpl_[A-Za-z0-9]+$/.test(deploymentId)){message.textContent="Enter a valid Vercel deployment ID.";return;}
+ if(!confirm("Verify this deployment and start a new Vercel build? Production targets require the separate checkbox."))return;
+ button.disabled=true;button.textContent="Verifying…";message.textContent="Checking deployment ownership and target…";
+ try{
+  const result=await vercelDeployCall({deployment_id:deploymentId,confirm_production:confirmProduction});
+  message.textContent="Redeployment started · "+(result.deployment?.state||"QUEUED")+" · "+(result.deployment?.url||result.deployment?.id||"Deployment ID pending")+(result.audit_recorded?" · audit recorded":" · audit write needs review");
+  vercelDeployForm.reset();
+ }catch(error){message.textContent=error.message||"Redeployment failed. Check owner access and Vercel token.";}
+ finally{button.disabled=false;button.textContent="Verify & start redeployment";}
+});
