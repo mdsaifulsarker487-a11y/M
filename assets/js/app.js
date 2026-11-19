@@ -493,3 +493,21 @@ async function loadRailwayProjects(){
  }catch(e){railwayMessage.textContent=e.message;const tr=document.createElement("tr"),td=railwayCell("Could not load projects. Check owner access and token.");td.colSpan=4;tr.append(td);railwayProjectRows.append(tr);}
 }
 const railwayLoad=document.getElementById("railwayProjectsLoad");if(railwayLoad)railwayLoad.addEventListener("click",loadRailwayProjects);
+
+async function cloudflareCall(payload){
+ if(dataMode!=="live"||currentRole!=="owner"||!window.dolfishSupabase)throw new Error("Owner sign-in required.");
+ const {data,error}=await window.dolfishSupabase.functions.invoke("cc-cloudflare-readonly",{body:payload});
+ if(error||data?.error)throw new Error(data?.error||error?.message||"Cloudflare request failed");return data;
+}
+const cloudflareMessage=document.getElementById("cloudflareMessage"),cloudflareZoneRows=document.getElementById("cloudflareZoneRows"),cloudflareWorkerRows=document.getElementById("cloudflareWorkerRows");
+function cloudflareCell(value){const td=document.createElement("td");td.textContent=value==null?"—":String(value);return td;}
+async function loadCloudflare(action){
+ const body=action==="zones"?cloudflareZoneRows:cloudflareWorkerRows;body.replaceChildren();cloudflareMessage.textContent="Loading Cloudflare "+action+"…";
+ try{const data=await cloudflareCall({action});
+ (data.items||[]).forEach(item=>{const tr=document.createElement("tr");const values=action==="zones"?[item.name,item.status,item.plan]:[item.script,item.created_on?new Date(item.created_on).toLocaleString():"—",item.modified_on?new Date(item.modified_on).toLocaleString():"—"];values.forEach(v=>tr.append(cloudflareCell(v)));body.append(tr);});
+ if(!data.items?.length){const tr=document.createElement("tr"),td=cloudflareCell("No "+action+" found.");td.colSpan=3;tr.append(td);body.append(tr);}
+ cloudflareMessage.textContent="Loaded "+data.count+" Cloudflare "+action+".";
+ }catch(e){cloudflareMessage.textContent=e.message;const tr=document.createElement("tr"),td=cloudflareCell("Could not load data. Check owner access and token permissions.");td.colSpan=3;tr.append(td);body.append(tr);}
+}
+const cloudflareZonesLoad=document.getElementById("cloudflareZonesLoad");if(cloudflareZonesLoad)cloudflareZonesLoad.addEventListener("click",()=>loadCloudflare("zones"));
+const cloudflareWorkersLoad=document.getElementById("cloudflareWorkersLoad");if(cloudflareWorkersLoad)cloudflareWorkersLoad.addEventListener("click",()=>loadCloudflare("workers"));
