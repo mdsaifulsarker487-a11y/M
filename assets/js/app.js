@@ -460,3 +460,36 @@ async function loadNetlifySites(){
  }catch(e){netlifyMessage.textContent=e.message;const tr=document.createElement("tr"),td=safeCell("Could not load sites. Check owner access and token.");td.colSpan=5;tr.append(td);netlifySiteRows.append(tr);}
 }
 const netlifyLoad=document.getElementById("netlifySitesLoad");if(netlifyLoad)netlifyLoad.addEventListener("click",loadNetlifySites);
+
+async function railwayCall(payload){
+ if(dataMode!=="live"||currentRole!=="owner"||!window.dolfishSupabase)throw new Error("Owner sign-in required.");
+ const {data,error}=await window.dolfishSupabase.functions.invoke("cc-railway-readonly",{body:payload});
+ if(error||data?.error)throw new Error(data?.error||error?.message||"Railway request failed");return data;
+}
+const railwayMessage=document.getElementById("railwayMessage"),railwayProjectRows=document.getElementById("railwayProjectRows"),railwayServiceRows=document.getElementById("railwayServiceRows"),railwayDeployRows=document.getElementById("railwayDeployRows");
+function railwayCell(value){const td=document.createElement("td");td.textContent=value==null?"—":String(value);return td;}
+async function loadRailwayDeployments(projectId,environmentId){
+ railwayDeployRows.replaceChildren();railwayMessage.textContent="Loading deployments…";
+ try{const data=await railwayCall({action:"deployments",project_id:projectId,environment_id:environmentId});
+ if(!data.items?.length){const tr=document.createElement("tr"),td=railwayCell("No deployments found.");td.colSpan=4;tr.append(td);railwayDeployRows.append(tr);}
+ (data.items||[]).forEach(d=>{const tr=document.createElement("tr");[d.status,d.createdAt?new Date(d.createdAt).toLocaleString():"—",d.updatedAt?new Date(d.updatedAt).toLocaleString():"—",d.url||"—"].forEach(v=>tr.append(railwayCell(v)));railwayDeployRows.append(tr);});
+ railwayMessage.textContent="Loaded "+data.count+" deployment records.";
+ }catch(e){railwayMessage.textContent=e.message;}
+}
+async function loadRailwayServices(projectId){
+ railwayServiceRows.replaceChildren();railwayDeployRows.replaceChildren();railwayMessage.textContent="Loading services and environments…";
+ try{const data=await railwayCall({action:"services",project_id:projectId});
+ (data.services||[]).forEach(s=>{(data.environments||[]).forEach(env=>{const tr=document.createElement("tr");tr.append(railwayCell(s.name),railwayCell(env.name));const td=document.createElement("td"),btn=document.createElement("button");btn.type="button";btn.className="check-provider";btn.textContent="Deployments";btn.addEventListener("click",()=>loadRailwayDeployments(projectId,env.id));td.append(btn);tr.append(td);railwayServiceRows.append(tr);});});
+ if(!data.services?.length){const tr=document.createElement("tr"),td=railwayCell("No services in this project.");td.colSpan=3;tr.append(td);railwayServiceRows.append(tr);}
+ railwayMessage.textContent="Loaded "+(data.services||[]).length+" services and "+(data.environments||[]).length+" environments.";
+ }catch(e){railwayMessage.textContent=e.message;}
+}
+async function loadRailwayProjects(){
+ railwayMessage.textContent="Loading Railway projects…";railwayProjectRows.replaceChildren();
+ try{const data=await railwayCall({action:"projects"});
+ (data.items||[]).forEach(p=>{const tr=document.createElement("tr");tr.append(railwayCell(p.name),railwayCell(p.createdAt?new Date(p.createdAt).toLocaleDateString():"—"),railwayCell(p.updatedAt?new Date(p.updatedAt).toLocaleDateString():"—"));const td=document.createElement("td"),btn=document.createElement("button");btn.type="button";btn.className="check-provider";btn.textContent="Services";btn.addEventListener("click",()=>loadRailwayServices(p.id));td.append(btn);tr.append(td);railwayProjectRows.append(tr);});
+ if(!data.items?.length){const tr=document.createElement("tr"),td=railwayCell("No Railway projects found. Create a project in Railway first.");td.colSpan=4;tr.append(td);railwayProjectRows.append(tr);}
+ railwayMessage.textContent="Loaded "+data.count+" Railway projects.";
+ }catch(e){railwayMessage.textContent=e.message;const tr=document.createElement("tr"),td=railwayCell("Could not load projects. Check owner access and token.");td.colSpan=4;tr.append(td);railwayProjectRows.append(tr);}
+}
+const railwayLoad=document.getElementById("railwayProjectsLoad");if(railwayLoad)railwayLoad.addEventListener("click",loadRailwayProjects);
