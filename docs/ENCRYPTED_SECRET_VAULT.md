@@ -1,22 +1,32 @@
 # Encrypted Secret Vault (prototype)
 
-## Status
-The database table and Supabase Edge Function `cc-secret-vault` are deployed. The function is JWT-protected and checks trusted `app_metadata.role === "owner"`. The master key is **not configured**, so vault writes are expected to fail until it is set.
+## Deployed status
+- Supabase table `public.cc_secret_vault` is deployed with RLS and direct writes denied.
+- Edge Function `cc-secret-vault` is deployed, version 2, JWT verification enabled.
+- Dashboard UI provides owner-only entry, metadata listing, and deletion. Secret values are never listed or returned.
+- AES-GCM encryption runs server-side with a fresh 96-bit IV per write.
+- Vault create/update/delete operations write metadata-only events to `cc_audit_events`.
 
-## Design
-- Secrets are accepted only by the HTTPS Edge Function.
-- AES-256-GCM encryption is performed server-side with a random 96-bit IV.
-- Only ciphertext and IV are stored in `public.cc_secret_vault`.
-- The encryption key is derived from `CC_VAULT_MASTER_KEY` using SHA-256; it must be configured as a Supabase Edge Function secret and never placed in the frontend, database, repository, or chat.
-- List returns metadata only. The function has no plaintext retrieval action.
-- Direct authenticated database access to the vault table is revoked; owner metadata reads are allowed by RLS. Direct writes are denied.
+## Required secure configuration (not yet complete)
+Configure these in Supabase Dashboard → Edge Functions → Secrets. Never place them in the repository, frontend, ordinary database rows, or chat:
+1. `CC_VAULT_MASTER_KEY`: a randomly generated value with at least 32 characters. Keep a secure offline recovery copy; loss makes existing ciphertext unrecoverable.
+2. `CC_CONTROL_CENTER_ORIGIN`: the exact HTTPS origin serving the Control Center, with no trailing path (for example, `https://control.example.com`). The function rejects requests unless the request Origin matches this value.
 
-## Important limitations / next hardening
-1. Configure `CC_VAULT_MASTER_KEY` with a random value of at least 32 characters using Supabase's secure secrets interface. Do not paste it into ChatGPT.
-2. Add audit events for vault create/update/delete.
-3. Add UI for owner-only secret entry and metadata listing; the value field must clear immediately after successful save and never persist in browser storage.
-4. Implement provider-specific credential validation without returning secret values.
-5. Plan key rotation and backup/recovery before production use.
-6. Review CORS origin restrictions, rate limits, and security testing before production.
+Do not save real production credentials until both values are configured and the owner account is verified.
 
-This is an experimental vault foundation, not a production-approved secret manager.
+## Security controls
+- JWT is verified by the Edge Function platform and the function separately checks trusted `app_metadata.role === "owner"`.
+- CORS is exact-origin allowlisted; no wildcard origin.
+- Secret values are encrypted using AES-GCM before database insertion.
+- List returns metadata only. There is no plaintext retrieval action.
+- Audit details contain provider/integration/variable metadata only, never secret values.
+- Delete records metadata in audit history before returning success.
+- Browser input is cleared after submission; values are not intentionally persisted in local storage.
+
+## Remaining before production
+- Configure the two Edge Function secrets and verify the owner identity/role.
+- Perform owner and unauthorized-user tests, including CORS, set/list/delete and audit verification.
+- Implement a reviewed key-rotation and recovery procedure before production.
+- Add rate limiting and operational alerting.
+- Provider adapters must decrypt only inside trusted server-side functions and must never return plaintext to the browser.
+- This remains a prototype, not a production-approved secret manager.
