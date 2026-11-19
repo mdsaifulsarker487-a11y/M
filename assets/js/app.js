@@ -433,3 +433,30 @@ if(vercelDeployForm)vercelDeployForm.addEventListener("submit",async event=>{
  }catch(error){message.textContent=error.message||"Redeployment failed. Check owner access and Vercel token.";}
  finally{button.disabled=false;button.textContent="Verify & start redeployment";}
 });
+
+
+async function netlifyCall(payload){
+ if(dataMode!=="live"||currentRole!=="owner"||!window.dolfishSupabase)throw new Error("Owner sign-in required.");
+ const {data,error}=await window.dolfishSupabase.functions.invoke("cc-netlify-readonly",{body:payload});
+ if(error||data?.error)throw new Error(data?.error||error?.message||"Netlify request failed");return data;
+}
+const netlifyMessage=document.getElementById("netlifyMessage");
+const netlifySiteRows=document.getElementById("netlifySiteRows"),netlifyDeployRows=document.getElementById("netlifyDeployRows");
+const safeCell=(value)=>{const td=document.createElement("td");td.textContent=value==null?"—":String(value);return td;};
+async function loadNetlifyDeploys(siteId){
+ netlifyDeployRows.replaceChildren();netlifyMessage.textContent="Loading recent deployments…";
+ try{const data=await netlifyCall({action:"deploys",site_id:siteId});
+ if(!data.deploys?.length){const tr=document.createElement("tr"),td=safeCell("No deployments found.");td.colSpan=5;tr.append(td);netlifyDeployRows.append(tr);}
+ (data.deploys||[]).forEach(d=>{const tr=document.createElement("tr");[d.state,d.context,d.branch,d.commit_ref?String(d.commit_ref).slice(0,10):"—",d.deploy_url||"—"].forEach(v=>tr.append(safeCell(v)));netlifyDeployRows.append(tr);});
+ netlifyMessage.textContent="Loaded "+data.count+" recent deployment records.";
+ }catch(e){netlifyMessage.textContent=e.message;}
+}
+async function loadNetlifySites(){
+ netlifyMessage.textContent="Loading Netlify sites…";netlifySiteRows.replaceChildren();
+ try{const data=await netlifyCall({action:"sites"});
+ (data.sites||[]).forEach(s=>{const tr=document.createElement("tr");[s.name,s.url,s.branch,s.published_state].forEach(v=>tr.append(safeCell(v)));
+ const td=document.createElement("td"),btn=document.createElement("button");btn.type="button";btn.className="check-provider";btn.textContent="Deploys";btn.addEventListener("click",()=>loadNetlifyDeploys(s.id));td.append(btn);tr.append(td);netlifySiteRows.append(tr);});
+ netlifyMessage.textContent="Loaded "+data.count+" Netlify sites. Select Deploys for history.";
+ }catch(e){netlifyMessage.textContent=e.message;const tr=document.createElement("tr"),td=safeCell("Could not load sites. Check owner access and token.");td.colSpan=5;tr.append(td);netlifySiteRows.append(tr);}
+}
+const netlifyLoad=document.getElementById("netlifySitesLoad");if(netlifyLoad)netlifyLoad.addEventListener("click",loadNetlifySites);
