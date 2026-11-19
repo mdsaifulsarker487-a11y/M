@@ -511,3 +511,21 @@ async function loadCloudflare(action){
 }
 const cloudflareZonesLoad=document.getElementById("cloudflareZonesLoad");if(cloudflareZonesLoad)cloudflareZonesLoad.addEventListener("click",()=>loadCloudflare("zones"));
 const cloudflareWorkersLoad=document.getElementById("cloudflareWorkersLoad");if(cloudflareWorkersLoad)cloudflareWorkersLoad.addEventListener("click",()=>loadCloudflare("workers"));
+
+async function renderCall(payload){
+ if(dataMode!=="live"||currentRole!=="owner"||!window.dolfishSupabase)throw new Error("Owner sign-in required.");
+ const {data,error}=await window.dolfishSupabase.functions.invoke("cc-render-readonly",{body:payload});
+ if(error||data?.error)throw new Error(data?.error||error?.message||"Render request failed");return data;
+}
+const renderMessage=document.getElementById("renderMessage"),renderServiceRows=document.getElementById("renderServiceRows"),renderDeployRows=document.getElementById("renderDeployRows");
+function renderCell(value){const td=document.createElement("td");td.textContent=value==null?"—":String(value);return td;}
+async function loadRender(action){
+ const body=action==="services"?renderServiceRows:renderDeployRows;body.replaceChildren();renderMessage.textContent="Loading Render "+action+"…";
+ try{const payload={action};if(action==="deploys")payload.serviceId=document.getElementById("renderServiceId").value.trim();
+ const data=await renderCall(payload);(data.items||[]).forEach(item=>{const tr=document.createElement("tr");const values=action==="services"?[item.name,item.type,item.region,item.plan,item.suspended?"Suspended":"Active"]:[item.id,item.status,item.createdAt?new Date(item.createdAt).toLocaleString():"—",item.updatedAt?new Date(item.updatedAt).toLocaleString():"—"];values.forEach(v=>tr.append(renderCell(v)));body.append(tr);});
+ if(!data.items?.length){const tr=document.createElement("tr"),td=renderCell("No "+action+" found.");td.colSpan=action==="services"?5:4;tr.append(td);body.append(tr);}
+ renderMessage.textContent="Loaded "+data.count+" Render "+action+".";
+ }catch(e){renderMessage.textContent=e.message;const tr=document.createElement("tr"),td=renderCell("Could not load. Check owner access, vault token and permissions.");td.colSpan=action==="services"?5:4;tr.append(td);body.append(tr);}
+}
+const renderServicesLoad=document.getElementById("renderServicesLoad");if(renderServicesLoad)renderServicesLoad.addEventListener("click",()=>loadRender("services"));
+const renderDeploysLoad=document.getElementById("renderDeploysLoad");if(renderDeploysLoad)renderDeploysLoad.addEventListener("click",()=>loadRender("deploys"));
