@@ -13,7 +13,7 @@ let currentAuditEvents = [];
 let currentCatalog = [];
 let currentHealthChecks = [];
 let currentOperationRequests = [];
-let currentApiIntegrations = [];
+let currentApiIntegrations = [];\nlet currentVaultItems = [];
 let dataMode = "demo";
 let currentUser = null;
 let currentRole = null;
@@ -192,9 +192,31 @@ function renderApiManager(){
  if(!currentApiIntegrations.length){const row=document.createElement("tr"),cell=document.createElement("td");cell.colSpan=6;cell.textContent="No integrations registered yet.";row.append(cell);tbody.append(row);}
  currentApiIntegrations.forEach(item=>{const row=document.createElement("tr");const project=currentProjects.find(p=>p.id===item.project_id);[item.display_name,project?.name||"Unknown project",item.provider,item.environment_scope,item.secret_reference||"Not configured",item.status].forEach(v=>{const td=document.createElement("td");td.textContent=safeText(v);row.append(td);});tbody.append(row);});if(status)status.textContent="LIVE REGISTRY";
 }
+function renderVault(){
+ const project=document.getElementById("vaultProject"),body=document.getElementById("vaultRows");if(!project||!body)return;
+ project.replaceChildren();currentProjects.forEach(p=>{const o=document.createElement("option");o.value=p.id||"";o.textContent=p.name;project.append(o);});
+ body.replaceChildren();
+ if(dataMode!=="live"||currentRole!=="owner"){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.textContent="Owner sign-in required to access the encrypted vault.";tr.append(td);body.append(tr);return;}
+ if(!currentVaultItems.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.textContent="No secrets stored yet.";tr.append(td);body.append(tr);return;}
+ currentVaultItems.forEach(item=>{const tr=document.createElement("tr");[item.secret_name,item.project_name||currentProjects.find(p=>p.id===item.project_id)?.name||"Project",item.provider,item.environment_scope,item.masked_hint||"Hidden",item.updated_at?new Date(item.updated_at).toLocaleString():"—"].forEach(v=>{const td=document.createElement("td");td.textContent=safeText(v);tr.append(td);});const td=document.createElement("td"),btn=document.createElement("button");btn.type="button";btn.className="check-provider";btn.textContent="Delete";btn.addEventListener("click",()=>deleteVaultItem(item.id));td.append(btn);tr.append(td);body.append(tr);});
+}
+async function loadVault(){
+ const message=document.getElementById("vaultMessage");
+ if(dataMode!=="live"||currentRole!=="owner"||!window.dolfishSupabase){currentVaultItems=[];renderVault();return;}
+ const {data,error}=await window.dolfishSupabase.functions.invoke("cc-secret-vault",{body:{action:"list"}});
+ if(error){if(message)message.textContent="Vault list unavailable. Check owner access and function deployment.";currentVaultItems=[];}else currentVaultItems=data?.items||[];
+ renderVault();
+}
+async function deleteVaultItem(id){
+ if(!currentUser||currentRole!=="owner"||!window.dolfishSupabase||!confirm("Delete this encrypted secret permanently?"))return;
+ const {data,error}=await window.dolfishSupabase.functions.invoke("cc-secret-vault",{body:{action:"delete",id}});
+ const message=document.getElementById("vaultMessage");
+ if(error||!data?.ok){message.textContent="Delete failed. Check vault configuration.";return;}
+ message.textContent="Encrypted secret deleted.";await loadVault();
+}
 function renderAll() {
   renderCards("projectCards",currentProjects.slice(0,6));
-  renderApiManager();
+  renderApiManager();\n  renderVault();
   renderCards("allProjects",currentProjects);
   renderCards("providers",currentProviders.map(p=>({...p,description:p.secret_reference?"Vault reference configured (value hidden).":"Connection metadata only. No secret values are stored here.",tags:[p.provider||"Provider",p.secret_reference?"Vault reference":"No vault reference"]})),"provider");
   updateStats();
@@ -321,7 +343,23 @@ if(apiIntegrationForm)apiIntegrationForm.addEventListener("submit",async event=>
  const {error}=await window.dolfishSupabase.from("cc_api_integrations").insert(payload);if(error)throw error;message.textContent="Metadata saved. Secret value was not entered or stored.";apiIntegrationForm.reset();await loadLiveData({user:currentUser,role:currentRole,supabase:window.dolfishSupabase});
  }catch(error){console.error("API integration save failed",error);message.textContent="Save failed. Check permissions and project selection.";}finally{submit.disabled=false;submit.textContent="Save integration metadata";}
 });
-const operationForm=document.getElementById("operationRequestForm");
+const vaultForm=document.getElementById("vaultForm");
+if(vaultForm)vaultForm.addEventListener("submit",async event=>{
+ event.preventDefault();const message=document.getElementById("vaultMessage"),value=document.getElementById("vaultSecretValue"),button=vaultForm.querySelector('button[type="submit"]');
+ if(dataMode!=="live"||currentRole!=="owner"||!window.dolfishSupabase){message.textContent="Owner sign-in is required. Preview mode cannot save secrets.";return;}
+ if(!value.value){message.textContent="Enter a secret value.";return;}
+ button.disabled=true;button.textContent="Encrypting…";
+ try{
+  const payload={action:"set",project_id:document.getElementById("vaultProject").value,provider:document.getElementById("vaultProvider").value.toLowerCase().replaceAll(" ","-"),integration_name:document.getElementById("vaultIntegration").value.trim(),environment_scope:document.getElementById("vaultEnvironment").value,secret_name:document.getElementById("vaultSecretName").value.trim(),secret_value:value.value,masked_hint:document.getElementById("vaultHint").value.trim()||null};
+  const {data,error}=await window.dolfishSupabase.functions.invoke("cc-secret-vault",{body:payload});
+  value.value="";
+  if(error||!data?.ok)throw error||new Error("Vault rejected the request");
+  vaultForm.reset();message.textContent="Secret encrypted and stored. Plaintext was not returned.";await loadVault();
+ }catch(error){console.error("Vault save failed",error);message.textContent="Save failed. Confirm CC_VAULT_MASTER_KEY is configured in Supabase Edge Function secrets.";}
+ finally{value.value="";button.disabled=false;button.textContent="Encrypt & save secret";}
+});
+const refreshVault=document.getElementById("refreshVault");if(refreshVault)refreshVault.addEventListener("click",loadVault);
+\nconst operationForm=document.getElementById("operationRequestForm");
 if(operationForm)operationForm.addEventListener("submit",async event=>{
  event.preventDefault();
  if(dataMode!=="live"||!currentUser||!["owner","admin"].includes(currentRole)||!window.dolfishSupabase)return;
