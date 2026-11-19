@@ -13,6 +13,7 @@ let currentAuditEvents = [];
 let currentCatalog = [];
 let currentHealthChecks = [];
 let currentOperationRequests = [];
+let currentApiIntegrations = [];
 let dataMode = "demo";
 let currentUser = null;
 let currentRole = null;
@@ -184,8 +185,16 @@ function renderMonitoring() {
   });
 }
 
+function renderApiManager(){
+ const select=document.getElementById("apiProject");const tbody=document.getElementById("apiIntegrationRows");const status=document.getElementById("apiRegistryStatus");if(!select||!tbody)return;
+ select.replaceChildren();currentProjects.forEach(project=>{const option=document.createElement("option");option.value=project.id||project.slug;option.textContent=project.name;select.append(option);});tbody.replaceChildren();
+ if(dataMode!=="live"){const row=document.createElement("tr"),cell=document.createElement("td");cell.colSpan=6;cell.textContent="Preview only. Sign in with approved owner/admin access to save and load integrations.";row.append(cell);tbody.append(row);if(status)status.textContent="PREVIEW";return;}
+ if(!currentApiIntegrations.length){const row=document.createElement("tr"),cell=document.createElement("td");cell.colSpan=6;cell.textContent="No integrations registered yet.";row.append(cell);tbody.append(row);}
+ currentApiIntegrations.forEach(item=>{const row=document.createElement("tr");const project=currentProjects.find(p=>p.id===item.project_id);[item.display_name,project?.name||"Unknown project",item.provider,item.environment_scope,item.secret_reference||"Not configured",item.status].forEach(v=>{const td=document.createElement("td");td.textContent=safeText(v);row.append(td);});tbody.append(row);});if(status)status.textContent="LIVE REGISTRY";
+}
 function renderAll() {
   renderCards("projectCards",currentProjects.slice(0,6));
+  renderApiManager();
   renderCards("allProjects",currentProjects);
   renderCards("providers",currentProviders.map(p=>({...p,description:p.secret_reference?"Vault reference configured (value hidden).":"Connection metadata only. No secret values are stored here.",tags:[p.provider||"Provider",p.secret_reference?"Vault reference":"No vault reference"]})),"provider");
   updateStats();
@@ -256,18 +265,20 @@ async function loadLiveData({user,role,supabase}) {
     currentCatalog=[];
     currentHealthChecks=[];
     currentOperationRequests=[];
+    currentApiIntegrations=[];
     renderAll();
     return;
   }
-  const [projectResult,providerResult,auditResult,catalogResult,healthResult,operationResult]=await Promise.all([
+  const [projectResult,providerResult,auditResult,catalogResult,healthResult,operationResult,apiResult]=await Promise.all([
     supabase.from("cc_projects").select("id,name,slug,description,lifecycle_status,updated_at").order("name"),
     supabase.from("cc_provider_connections").select("id,provider,display_name,status,secret_reference,updated_at").order("display_name"),
     supabase.from("cc_audit_events").select("id,action,target_type,target_id,created_at").order("created_at",{ascending:false}).limit(10),
     supabase.from("cc_provider_catalog").select("provider,display_name,category,auth_method,minimum_scopes,capabilities,docs_url,connection_strategy").order("display_name"),
     supabase.from("cc_provider_health_checks").select("provider,status,http_status,latency_ms,message,checked_at").order("checked_at",{ascending:false}).limit(30),
-    supabase.from("cc_operation_requests").select("id,requested_by,operation_type,target_project,rationale,status,reviewed_at,review_note,created_at").order("created_at",{ascending:false}).limit(30)
+    supabase.from("cc_operation_requests").select("id,requested_by,operation_type,target_project,rationale,status,reviewed_at,review_note,created_at").order("created_at",{ascending:false}).limit(30),
+    supabase.from("cc_api_integrations").select("id,project_id,provider,display_name,secret_reference,masked_hint,environment_scope,status,documentation_url,notes,created_at").order("created_at",{ascending:false})
   ]);
-  if(projectResult.error || providerResult.error || auditResult.error || catalogResult.error || healthResult.error || operationResult.error) {
+  if(projectResult.error || providerResult.error || auditResult.error || catalogResult.error || healthResult.error || operationResult.error || apiResult.error) {
     console.error("Control Center data load failed",projectResult.error||providerResult.error||auditResult.error||catalogResult.error||healthResult.error||operationResult.error);
     dataMode="restricted";
     currentProjects=demoProjects;
@@ -276,6 +287,7 @@ async function loadLiveData({user,role,supabase}) {
     currentCatalog=[];
     currentHealthChecks=[];
     currentOperationRequests=[];
+    currentApiIntegrations=[];
     renderAll();
     const pill=document.querySelector(".topright .pill"); if(pill)pill.textContent="● Database access error";
     return;
@@ -286,6 +298,7 @@ async function loadLiveData({user,role,supabase}) {
   currentCatalog=catalogResult.data||[];
   currentHealthChecks=healthResult.data||[];
   currentOperationRequests=operationResult.data||[];
+  currentApiIntegrations=apiResult.data||[];
   dataMode="live";
   renderAll();
 }
@@ -299,6 +312,15 @@ if(refreshMonitoring)refreshMonitoring.addEventListener("click",async()=>{
 });
 if("serviceWorker"in navigator&&location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
 
+const apiIntegrationForm=document.getElementById("apiIntegrationForm");
+if(apiIntegrationForm)apiIntegrationForm.addEventListener("submit",async event=>{
+ event.preventDefault();const message=document.getElementById("apiFormMessage");
+ if(dataMode!=="live"||currentRole!=="owner"||!currentUser||!window.dolfishSupabase){message.textContent="Owner sign-in is required. Preview mode cannot save records.";return;}
+ const submit=apiIntegrationForm.querySelector('button[type="submit"]');submit.disabled=true;submit.textContent="Saving…";
+ try{const payload={project_id:document.getElementById("apiProject").value,provider:document.getElementById("apiProvider").value.toLowerCase().replaceAll(" ","-"),display_name:document.getElementById("apiName").value.trim(),environment_scope:document.getElementById("apiEnvironment").value,secret_reference:document.getElementById("apiSecretRef").value.trim()||null,masked_hint:document.getElementById("apiMaskedHint").value.trim()||null,documentation_url:document.getElementById("apiDocs").value.trim()||null,notes:document.getElementById("apiNotes").value.trim()||null,created_by:currentUser.id,status:"not_configured"};
+ const {error}=await window.dolfishSupabase.from("cc_api_integrations").insert(payload);if(error)throw error;message.textContent="Metadata saved. Secret value was not entered or stored.";apiIntegrationForm.reset();await loadLiveData({user:currentUser,role:currentRole,supabase:window.dolfishSupabase});
+ }catch(error){console.error("API integration save failed",error);message.textContent="Save failed. Check permissions and project selection.";}finally{submit.disabled=false;submit.textContent="Save integration metadata";}
+});
 const operationForm=document.getElementById("operationRequestForm");
 if(operationForm)operationForm.addEventListener("submit",async event=>{
  event.preventDefault();
